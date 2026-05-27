@@ -20,8 +20,19 @@ The binary is written to `target/release/pihole-exporter`.
 
 ### Using Docker
 
+Build for the current platform:
+
 ```bash
 docker build -t pihole-exporter .
+```
+
+Build multi-arch images for `linux/amd64` and `linux/arm64` (requires [Buildx](https://docs.docker.com/build/building/multi-platform/)):
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t pihole-exporter:latest .
+```
+
+```bash
 docker run \
   -e 'PIHOLE_HOSTNAME=192.168.1.2' \
   -e 'PIHOLE_PASSWORD=mypassword' \
