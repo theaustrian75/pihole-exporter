@@ -95,12 +95,25 @@ impl From<Cli> for EnvConfig {
 }
 
 impl EnvConfig {
-    pub fn load() -> Result<(Self, Vec<ClientConfig>), ConfigError> {
-        let cli = Cli::parse();
+    pub fn from_cli(cli: Cli) -> Result<(Self, Vec<ClientConfig>), ConfigError> {
         let env = EnvConfig::from(cli);
-        env.log_debug();
+        env.log_startup();
+        if env.debug {
+            env.log_debug();
+        }
         let clients = env.split()?;
         Ok((env, clients))
+    }
+
+    fn log_startup(&self) {
+        tracing::info!(
+            bind_addr = %self.bind_addr,
+            port = %self.port,
+            timeout = ?self.timeout,
+            skip_tls_verification = self.skip_tls_verification,
+            pi_hole_hosts = self.pihole_hostname.len(),
+            "exporter configuration loaded"
+        );
     }
 
     fn log_debug(&self) {

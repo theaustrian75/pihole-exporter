@@ -72,6 +72,13 @@ impl PiHoleClientHandle {
             "Creating client"
         );
 
+        tracing::info!(
+            host = %config.pihole_hostname,
+            url = %config.base_url(),
+            authenticated = !config.pihole_password.is_empty(),
+            "Pi-hole client initialized"
+        );
+
         Ok(Self {
             api_client: Arc::new(ApiClient::new(
                 config.base_url(),
@@ -85,6 +92,21 @@ impl PiHoleClientHandle {
 
     pub fn hostname(&self) -> &str {
         &self.config.pihole_hostname
+    }
+
+    pub async fn check_connection(&self) -> Result<(), ClientError> {
+        self.api_client
+            .ensure_session()
+            .await
+            .map_err(ClientError::Auth)?;
+
+        let _: BlockingStatus = self
+            .api_client
+            .fetch_data("/api/dns/blocking")
+            .await
+            .map_err(ClientError::Status)?;
+
+        Ok(())
     }
 
     pub async fn collect_metrics(&self) -> Result<(), ClientError> {
@@ -191,7 +213,7 @@ impl PiHoleClientHandle {
         match self.api_client.fetch_data(endpoint).await {
             Ok(value) => Some(value),
             Err(err) => {
-                tracing::warn!(
+                tracing::error!(
                     host = %self.config.pihole_hostname,
                     endpoint,
                     error = %err,

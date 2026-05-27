@@ -12,6 +12,10 @@ const AUTH_RETRY_DELAY: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Error)]
 pub enum ApiError {
+    #[error("connection to Pi-hole failed at {url}: {message}")]
+    Connection { url: String, message: String },
+    #[error("request to Pi-hole timed out at {url}")]
+    Timeout { url: String },
     #[error("authentication request failed for {url}: {source}")]
     AuthRequest {
         url: String,
@@ -32,6 +36,32 @@ pub enum ApiError {
     BadStatus(u16),
     #[error("failed to parse JSON response: {0}")]
     Parse(#[from] serde_json::Error),
+}
+
+fn map_request_error(url: String, source: reqwest::Error) -> ApiError {
+    if source.is_timeout() {
+        ApiError::Timeout { url }
+    } else if source.is_connect() {
+        ApiError::Connection {
+            url,
+            message: source.to_string(),
+        }
+    } else {
+        ApiError::Fetch { url, source }
+    }
+}
+
+fn map_auth_error(url: String, source: reqwest::Error) -> ApiError {
+    if source.is_timeout() {
+        ApiError::Timeout { url }
+    } else if source.is_connect() {
+        ApiError::Connection {
+            url,
+            message: source.to_string(),
+        }
+    } else {
+        ApiError::AuthRequest { url, source }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,10 +153,7 @@ impl ApiClient {
                 .json(&serde_json::json!({ "password": self.password }))
                 .send()
                 .await
-                .map_err(|source| ApiError::AuthRequest {
-                    url: url.clone(),
-                    source,
-                })?;
+                .map_err(|source| map_auth_error(url.clone(), source))?;
 
             let status = response.status();
             if status.as_u16() == 429 {
@@ -142,10 +169,7 @@ impl ApiClient {
                 return Err(ApiError::AuthStatus(status.as_u16()));
             }
 
-            let body = response.bytes().await.map_err(|source| ApiError::AuthRequest {
-                url: url.clone(),
-                source,
-            })?;
+            let body = response.bytes().await.map_err(|source| map_auth_error(url.clone(), source))?;
             if body.len() > MAX_RESPONSE_SIZE {
                 return Err(ApiError::AuthStatus(413));
             }
@@ -210,20 +234,14 @@ impl ApiClient {
             .header("X-Content-Type-Options", "nosniff")
             .send()
             .await
-            .map_err(|source| ApiError::Fetch {
-                url: url.clone(),
-                source,
-            })?;
+            .map_err(|source| map_request_error(url.clone(), source))?;
 
         let status = response.status();
         if !status.is_success() {
             return Err(ApiError::BadStatus(status.as_u16()));
         }
 
-        let body = response.bytes().await.map_err(|source| ApiError::Fetch {
-            url: url.clone(),
-            source,
-        })?;
+        let body = response.bytes().await.map_err(|source| map_request_error(url.clone(), source))?;
         if body.len() > MAX_RESPONSE_SIZE {
             return Err(ApiError::BadStatus(413));
         }

@@ -100,10 +100,10 @@ A single exporter instance can monitor multiple Pi-hole hosts by providing comma
 | Path | Description |
 |------|-------------|
 | `/` | Service index |
-| `/metrics` | Prometheus metrics |
-| `/healthz` | Liveness probe (returns `ok`) |
-| `/readiness` | Readiness probe |
-| `/liveness` | Liveness probe |
+| `/metrics` | Prometheus metrics (503 if all Pi-hole hosts are unreachable) |
+| `/healthz` | Pi-hole connectivity probe (returns `ok` or an error) |
+| `/readiness` | Same as `/healthz` |
+| `/liveness` | Same as `/healthz` |
 
 ## Prometheus metrics
 

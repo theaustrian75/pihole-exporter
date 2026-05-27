@@ -493,6 +493,7 @@ pub fn init() {
         SCRAPE_DURATION_SECONDS,
         LAST_SCRAPE_TIMESTAMP,
     );
+    tracing::info!("prometheus metrics registered");
 }
 
 pub fn encode_metrics() -> Result<String, prometheus::Error> {
