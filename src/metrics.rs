@@ -123,7 +123,7 @@ pub static FORWARD_DESTINATIONS: Lazy<GaugeVec> = Lazy::new(|| {
     register_metric(
         "forward_destinations",
         "This represent the number of forward destinations requests made by Pi-hole by destination",
-        &["hostname", "destination", "destination_name"],
+        &["hostname", "destination", "destination_name", "port"],
     )
 });
 
@@ -131,7 +131,7 @@ pub static FORWARD_DESTINATIONS_RESPONSE_TIME: Lazy<GaugeVec> = Lazy::new(|| {
     register_metric(
         "forward_destinations_responsetime",
         "This represent the seconds a forward destinations took to process a requests made by Pi-hole",
-        &["hostname", "destination", "destination_name"],
+        &["hostname", "destination", "destination_name", "port"],
     )
 });
 
@@ -139,7 +139,7 @@ pub static FORWARD_DESTINATIONS_RESPONSE_VARIANCE: Lazy<GaugeVec> = Lazy::new(||
     register_metric(
         "forward_destinations_responsevariance",
         "This represent the variants in response time a forward destinations took to process a requests made by Pi-hole",
-        &["hostname", "destination", "destination_name"],
+        &["hostname", "destination", "destination_name", "port"],
     )
 });
 
@@ -153,6 +153,254 @@ pub static QUERY_TYPES: Lazy<GaugeVec> = Lazy::new(|| {
 
 pub static STATUS: Lazy<GaugeVec> = Lazy::new(|| {
     register_metric("status", "This if Pi-hole is enabled", &["hostname"])
+});
+
+pub static QUERY_STATUS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "query_status",
+        "This represent the number of queries by Pi-hole processing status",
+        &["hostname", "status"],
+    )
+});
+
+pub static GRAVITY_LAST_UPDATE: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "gravity_last_update",
+        "Unix timestamp of the last gravity update",
+        &["hostname"],
+    )
+});
+
+pub static GRAVITY_AGE_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "gravity_age_seconds",
+        "Seconds since the last gravity update",
+        &["hostname"],
+    )
+});
+
+pub static QUERIES_LAST_10MIN: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "queries_last_10min",
+        "This represent the number of queries in the last full slot of 10 minutes",
+        &["hostname"],
+    )
+});
+
+pub static ADS_LAST_10MIN: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "ads_last_10min",
+        "This represent the number of ads in the last full slot of 10 minutes",
+        &["hostname"],
+    )
+});
+
+pub static HISTORY: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "history",
+        "Historical query counts per 10-minute slot over the last 24 hours",
+        &["hostname", "timestamp", "field"],
+    )
+});
+
+pub static BLOCKING_TIMER_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "blocking_timer_seconds",
+        "Seconds until Pi-hole blocking mode reverts when temporarily disabled",
+        &["hostname"],
+    )
+});
+
+pub static UPSTREAM_FORWARDED_QUERIES: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "upstream_forwarded_queries",
+        "Total forwarded queries reported by upstream stats",
+        &["hostname"],
+    )
+});
+
+pub static UPSTREAM_TOTAL_QUERIES: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "upstream_total_queries",
+        "Total queries reported by upstream stats",
+        &["hostname"],
+    )
+});
+
+pub static API_SUMMARY_TOOK_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "api_summary_took_seconds",
+        "Time Pi-hole took to generate the stats summary response",
+        &["hostname"],
+    )
+});
+
+pub static VERSION_INFO: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "version_info",
+        "Pi-hole component version information (value is always 1)",
+        &["hostname", "component", "version", "branch", "hash"],
+    )
+});
+
+pub static FTL_UPTIME_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_uptime_seconds", "Pi-hole FTL process uptime in seconds", &["hostname"])
+});
+
+pub static FTL_PID: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_pid", "Pi-hole FTL process ID", &["hostname"])
+});
+
+pub static FTL_MEM_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_mem_percent", "Pi-hole FTL memory usage percent", &["hostname"])
+});
+
+pub static FTL_CPU_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_cpu_percent", "Pi-hole FTL CPU usage percent", &["hostname"])
+});
+
+pub static FTL_QUERY_FREQUENCY: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_query_frequency", "Pi-hole FTL query frequency", &["hostname"])
+});
+
+pub static FTL_PRIVACY_LEVEL: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_privacy_level", "Pi-hole FTL privacy level", &["hostname"])
+});
+
+pub static FTL_DATABASE_GRAVITY: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_database_gravity", "Gravity domains in FTL database stats", &["hostname"])
+});
+
+pub static FTL_DATABASE_GROUPS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_database_groups", "Groups in FTL database stats", &["hostname"])
+});
+
+pub static FTL_DATABASE_LISTS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_database_lists", "Lists in FTL database stats", &["hostname"])
+});
+
+pub static FTL_DATABASE_CLIENTS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("ftl_database_clients", "Clients in FTL database stats", &["hostname"])
+});
+
+pub static SYSTEM_UPTIME_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_uptime_seconds", "Host system uptime in seconds", &["hostname"])
+});
+
+pub static SYSTEM_RAM_TOTAL_KB: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_ram_total_kb", "Host RAM total in kilobytes", &["hostname"])
+});
+
+pub static SYSTEM_RAM_FREE_KB: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_ram_free_kb", "Host RAM free in kilobytes", &["hostname"])
+});
+
+pub static SYSTEM_RAM_USED_KB: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_ram_used_kb", "Host RAM used in kilobytes", &["hostname"])
+});
+
+pub static SYSTEM_RAM_AVAILABLE_KB: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_ram_available_kb", "Host RAM available in kilobytes", &["hostname"])
+});
+
+pub static SYSTEM_RAM_USED_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_ram_used_percent", "Host RAM used percent", &["hostname"])
+});
+
+pub static SYSTEM_SWAP_TOTAL_KB: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_swap_total_kb", "Host swap total in kilobytes", &["hostname"])
+});
+
+pub static SYSTEM_SWAP_FREE_KB: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_swap_free_kb", "Host swap free in kilobytes", &["hostname"])
+});
+
+pub static SYSTEM_SWAP_USED_KB: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_swap_used_kb", "Host swap used in kilobytes", &["hostname"])
+});
+
+pub static SYSTEM_SWAP_USED_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_swap_used_percent", "Host swap used percent", &["hostname"])
+});
+
+pub static SYSTEM_CPU_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_cpu_percent", "Host CPU usage percent", &["hostname"])
+});
+
+pub static SYSTEM_CPU_NPROCS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_cpu_nprocs", "Host CPU processor count", &["hostname"])
+});
+
+pub static SYSTEM_LOAD: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_load", "Host load average", &["hostname", "period"])
+});
+
+pub static SYSTEM_FTL_MEM_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_ftl_mem_percent", "FTL memory usage percent from system info", &["hostname"])
+});
+
+pub static SYSTEM_FTL_CPU_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("system_ftl_cpu_percent", "FTL CPU usage percent from system info", &["hostname"])
+});
+
+pub static DATABASE_SIZE_BYTES: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("database_size_bytes", "Pi-hole query database size in bytes", &["hostname"])
+});
+
+pub static DATABASE_QUERIES: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("database_queries", "Queries stored in the in-memory database", &["hostname"])
+});
+
+pub static DATABASE_EARLIEST_TIMESTAMP: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "database_earliest_timestamp",
+        "Earliest query timestamp in the in-memory database",
+        &["hostname"],
+    )
+});
+
+pub static DATABASE_QUERIES_DISK: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("database_queries_disk", "Queries stored on disk", &["hostname"])
+});
+
+pub static DATABASE_EARLIEST_TIMESTAMP_DISK: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "database_earliest_timestamp_disk",
+        "Earliest query timestamp on disk",
+        &["hostname"],
+    )
+});
+
+pub static CPU_TEMP: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("cpu_temp", "CPU temperature reported by Pi-hole sensors", &["hostname", "unit"])
+});
+
+pub static CPU_TEMP_HOT_LIMIT: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric("cpu_temp_hot_limit", "CPU temperature hot limit", &["hostname", "unit"])
+});
+
+pub static SCRAPE_SUCCESS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "scrape_success",
+        "Whether the last metrics scrape from Pi-hole succeeded (1 = yes, 0 = no)",
+        &["hostname"],
+    )
+});
+
+pub static SCRAPE_DURATION_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "scrape_duration_seconds",
+        "Duration of the last Pi-hole metrics scrape in seconds",
+        &["hostname"],
+    )
+});
+
+pub static LAST_SCRAPE_TIMESTAMP: Lazy<GaugeVec> = Lazy::new(|| {
+    register_metric(
+        "last_scrape_timestamp",
+        "Unix timestamp of the last successful metrics scrape",
+        &["hostname"],
+    )
 });
 
 fn register_metric(name: &str, help: &str, label_names: &[&str]) -> GaugeVec {
@@ -170,27 +418,81 @@ fn register_metric(name: &str, help: &str, label_names: &[&str]) -> GaugeVec {
     metric
 }
 
+macro_rules! force_metrics {
+    ($($metric:expr),+ $(,)?) => {
+        $(Lazy::force(&$metric);)+
+    };
+}
+
 pub fn init() {
-    Lazy::force(&DOMAINS_BLOCKED);
-    Lazy::force(&DNS_QUERIES_TODAY);
-    Lazy::force(&ADS_BLOCKED_TODAY);
-    Lazy::force(&ADS_PERCENTAGE_TODAY);
-    Lazy::force(&UNIQUE_DOMAINS);
-    Lazy::force(&QUERIES_FORWARDED);
-    Lazy::force(&QUERIES_CACHED);
-    Lazy::force(&CLIENTS_EVER_SEEN);
-    Lazy::force(&UNIQUE_CLIENTS);
-    Lazy::force(&REQUEST_RATE);
-    Lazy::force(&DNS_QUERIES_ALL_TYPES);
-    Lazy::force(&REPLY);
-    Lazy::force(&TOP_QUERIES);
-    Lazy::force(&TOP_ADS);
-    Lazy::force(&TOP_SOURCES);
-    Lazy::force(&FORWARD_DESTINATIONS);
-    Lazy::force(&FORWARD_DESTINATIONS_RESPONSE_TIME);
-    Lazy::force(&FORWARD_DESTINATIONS_RESPONSE_VARIANCE);
-    Lazy::force(&QUERY_TYPES);
-    Lazy::force(&STATUS);
+    force_metrics!(
+        DOMAINS_BLOCKED,
+        DNS_QUERIES_TODAY,
+        ADS_BLOCKED_TODAY,
+        ADS_PERCENTAGE_TODAY,
+        UNIQUE_DOMAINS,
+        QUERIES_FORWARDED,
+        QUERIES_CACHED,
+        CLIENTS_EVER_SEEN,
+        UNIQUE_CLIENTS,
+        REQUEST_RATE,
+        DNS_QUERIES_ALL_TYPES,
+        REPLY,
+        TOP_QUERIES,
+        TOP_ADS,
+        TOP_SOURCES,
+        FORWARD_DESTINATIONS,
+        FORWARD_DESTINATIONS_RESPONSE_TIME,
+        FORWARD_DESTINATIONS_RESPONSE_VARIANCE,
+        QUERY_TYPES,
+        STATUS,
+        QUERY_STATUS,
+        GRAVITY_LAST_UPDATE,
+        GRAVITY_AGE_SECONDS,
+        QUERIES_LAST_10MIN,
+        ADS_LAST_10MIN,
+        HISTORY,
+        BLOCKING_TIMER_SECONDS,
+        UPSTREAM_FORWARDED_QUERIES,
+        UPSTREAM_TOTAL_QUERIES,
+        API_SUMMARY_TOOK_SECONDS,
+        VERSION_INFO,
+        FTL_UPTIME_SECONDS,
+        FTL_PID,
+        FTL_MEM_PERCENT,
+        FTL_CPU_PERCENT,
+        FTL_QUERY_FREQUENCY,
+        FTL_PRIVACY_LEVEL,
+        FTL_DATABASE_GRAVITY,
+        FTL_DATABASE_GROUPS,
+        FTL_DATABASE_LISTS,
+        FTL_DATABASE_CLIENTS,
+        SYSTEM_UPTIME_SECONDS,
+        SYSTEM_RAM_TOTAL_KB,
+        SYSTEM_RAM_FREE_KB,
+        SYSTEM_RAM_USED_KB,
+        SYSTEM_RAM_AVAILABLE_KB,
+        SYSTEM_RAM_USED_PERCENT,
+        SYSTEM_SWAP_TOTAL_KB,
+        SYSTEM_SWAP_FREE_KB,
+        SYSTEM_SWAP_USED_KB,
+        SYSTEM_SWAP_USED_PERCENT,
+        SYSTEM_CPU_PERCENT,
+        SYSTEM_CPU_NPROCS,
+        SYSTEM_LOAD,
+        SYSTEM_FTL_MEM_PERCENT,
+        SYSTEM_FTL_CPU_PERCENT,
+        DATABASE_SIZE_BYTES,
+        DATABASE_QUERIES,
+        DATABASE_EARLIEST_TIMESTAMP,
+        DATABASE_QUERIES_DISK,
+        DATABASE_EARLIEST_TIMESTAMP_DISK,
+        CPU_TEMP,
+        CPU_TEMP_HOT_LIMIT,
+        SCRAPE_SUCCESS,
+        SCRAPE_DURATION_SECONDS,
+        LAST_SCRAPE_TIMESTAMP,
+    );
 }
 
 pub fn encode_metrics() -> Result<String, prometheus::Error> {

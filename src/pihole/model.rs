@@ -5,19 +5,39 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct BlockingStatus {
     pub blocking: String,
+    #[serde(default)]
+    pub timer: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Upstreams {
     pub upstreams: Vec<Upstream>,
+    pub forwarded_queries: i64,
+    pub total_queries: i64,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Upstream {
     pub ip: String,
     pub name: String,
+    #[serde(default = "default_upstream_port")]
+    pub port: i64,
     pub count: i64,
     pub statistics: UpstreamStatistics,
+}
+
+fn default_upstream_port() -> i64 {
+    -1
+}
+
+impl Upstream {
+    pub fn port_label(&self) -> String {
+        if self.port < 0 {
+            String::new()
+        } else {
+            self.port.to_string()
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -54,6 +74,8 @@ pub struct StatsSummary {
     pub queries: QueryStats,
     pub clients: ClientStats,
     pub gravity: GravityStats,
+    #[serde(default)]
+    pub took: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,6 +89,8 @@ pub struct QueryStats {
     pub frequency: f64,
     #[serde(default)]
     pub types: HashMap<String, f64>,
+    #[serde(default)]
+    pub status: HashMap<String, i64>,
     pub replies: ReplyStats,
 }
 
@@ -112,6 +136,22 @@ pub struct ClientStats {
 #[derive(Debug, Deserialize)]
 pub struct GravityStats {
     pub domains_being_blocked: i64,
+    #[serde(default)]
+    pub last_update: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HistoryResponse {
+    pub history: Vec<HistorySlot>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HistorySlot {
+    pub timestamp: i64,
+    pub total: i64,
+    pub cached: i64,
+    pub blocked: i64,
+    pub forwarded: i64,
 }
 
 impl StatsSummary {
@@ -136,6 +176,10 @@ pub fn merge_clients(clients1: &[PiHoleClient], clients2: &[PiHoleClient]) -> Ve
     client_map.into_values().collect()
 }
 
+pub fn normalize_status_label(status: &str) -> String {
+    status.to_ascii_lowercase()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,5 +200,10 @@ mod tests {
         let merged = merge_clients(&permitted, &blocked);
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].count, 8);
+    }
+
+    #[test]
+    fn normalize_status_label_lowercases() {
+        assert_eq!(normalize_status_label("GRAVITY_CNAME"), "gravity_cname");
     }
 }

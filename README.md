@@ -121,6 +121,29 @@ All metrics use the `pihole_` namespace and a `hostname` label.
 | `pihole_querytypes` | Queries by DNS type |
 | `pihole_status` | Pi-hole blocking enabled (1) or disabled (0) |
 
+### v6 API metrics
+
+| Metric | Description |
+|--------|-------------|
+| `pihole_query_status` | Queries by processing status (gravity, forwarded, cache, etc.) |
+| `pihole_gravity_last_update` | Unix timestamp of last gravity update |
+| `pihole_gravity_age_seconds` | Seconds since last gravity update |
+| `pihole_queries_last_10min` | Queries in the latest 10-minute history slot |
+| `pihole_ads_last_10min` | Blocked queries in the latest 10-minute slot |
+| `pihole_history` | 24h history per 10-minute slot (`field=total\|blocked\|cached\|forwarded`) |
+| `pihole_blocking_timer_seconds` | Seconds until blocking mode reverts |
+| `pihole_upstream_forwarded_queries` | Forwarded queries from upstream stats |
+| `pihole_upstream_total_queries` | Total queries from upstream stats |
+| `pihole_api_summary_took_seconds` | Pi-hole stats summary generation time |
+| `pihole_version_info` | Component versions (`component=core_local`, etc.) |
+| `pihole_ftl_*` | FTL uptime, CPU/memory, privacy level, database counts |
+| `pihole_system_*` | Host uptime, RAM, swap, CPU, load averages |
+| `pihole_database_*` | Query database size and record counts |
+| `pihole_cpu_temp` | CPU temperature from Pi-hole sensors |
+| `pihole_scrape_success` | Last scrape succeeded (1/0) |
+| `pihole_scrape_duration_seconds` | Last scrape duration |
+| `pihole_last_scrape_timestamp` | Unix timestamp of last successful scrape |
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

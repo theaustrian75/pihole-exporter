@@ -9,7 +9,7 @@ use axum::Router;
 
 use crate::pihole::PiHoleClientHandle;
 
-const COLLECTION_TIMEOUT: Duration = Duration::from_secs(10);
+const COLLECTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
 pub struct AppState {
