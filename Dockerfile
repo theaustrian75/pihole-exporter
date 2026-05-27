@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM rust:1-alpine3.23 AS builder
+FROM --platform=$TARGETPLATFORM rust:1-alpine3.23 AS builder
 
 RUN apk add --no-cache musl-dev git
 
@@ -9,7 +9,7 @@ WORKDIR /build
 COPY Cargo.toml ./
 COPY src ./src
 
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 RUN set -eu; \
     case "${TARGETARCH}" in \
         amd64) RUST_TARGET=x86_64-unknown-linux-musl ;; \
@@ -20,7 +20,7 @@ RUN set -eu; \
     cargo build --release --target "${RUST_TARGET}"; \
     install -Dm755 "/build/target/${RUST_TARGET}/release/pihole-exporter" /build/pihole-exporter
 
-FROM alpine:3.23
+FROM --platform=$TARGETPLATFORM alpine:3.23
 
 RUN apk add --no-cache ca-certificates wget
 
