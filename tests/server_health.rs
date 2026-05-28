@@ -1,6 +1,6 @@
 //! HTTP probe and scrape semantics when Pi-hole fetch succeeds or fails.
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::{
@@ -9,16 +9,16 @@ use axum::{
 };
 use pihole_exporter::{
     config::ClientConfig,
+    metrics::Metrics,
     pihole::PiHoleClientHandle,
     server::{router, AppState},
-    upstream::UpstreamHealth,
 };
 use tower::ServiceExt;
 
 fn empty_app() -> axum::Router {
     router(AppState {
         clients: Arc::new(Vec::new()),
-        upstream: Arc::new(RwLock::new(UpstreamHealth::default())),
+        metrics: Metrics::new().expect("registry"),
     })
 }
 
@@ -34,7 +34,7 @@ fn app_with_unreachable_client() -> axum::Router {
 
     router(AppState {
         clients: Arc::new(vec![client]),
-        upstream: Arc::new(RwLock::new(UpstreamHealth::default())),
+        metrics: Metrics::new().expect("registry"),
     })
 }
 
@@ -88,12 +88,12 @@ async fn metrics_returns_503_when_upstream_unreachable() {
 
 #[tokio::test]
 async fn successful_fetch_enables_probes_and_metrics() {
-    let upstream = Arc::new(RwLock::new(UpstreamHealth::default()));
-    upstream.write().expect("lock").mark_success();
+    let metrics = Metrics::new().expect("registry");
+    metrics.mark_success();
 
     let app = router(AppState {
         clients: Arc::new(Vec::new()),
-        upstream: Arc::clone(&upstream),
+        metrics: Arc::clone(&metrics),
     });
 
     for path in ["/healthz", "/readiness", "/metrics"] {
@@ -112,16 +112,13 @@ async fn successful_fetch_enables_probes_and_metrics() {
 
 #[tokio::test]
 async fn fetch_failure_marks_upstream_unhealthy_again() {
-    let upstream = Arc::new(RwLock::new(UpstreamHealth::default()));
-    upstream.write().expect("lock").mark_success();
-    upstream
-        .write()
-        .expect("lock")
-        .record_failure("authentication failed: token expired");
+    let metrics = Metrics::new().expect("registry");
+    metrics.mark_success();
+    metrics.record_fetch_failure("authentication failed: token expired");
 
     let app = router(AppState {
         clients: Arc::new(Vec::new()),
-        upstream,
+        metrics,
     });
 
     let response = app

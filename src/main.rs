@@ -4,10 +4,9 @@ use std::time::Duration;
 
 use clap::Parser;
 use pihole_exporter::config::{Cli, EnvConfig};
+use pihole_exporter::metrics::Metrics;
 use pihole_exporter::pihole::PiHoleClientHandle;
-use pihole_exporter::server::{router, scrape_and_update_health, AppState};
-use pihole_exporter::upstream::{SharedUpstreamHealth, UpstreamHealth};
-use tracing_subscriber::EnvFilter;
+use pihole_exporter::server::{router, run as serve, scrape_and_update_health, shutdown_signal, AppState};
 
 const STARTUP_MAX_ATTEMPTS: u32 = 3;
 const STARTUP_RETRY_DELAY: Duration = Duration::from_millis(500);
@@ -30,8 +29,13 @@ async fn main() {
         }
     };
 
-    tracing::info!("registering prometheus metrics");
-    pihole_exporter::metrics::init();
+    let metrics = match Metrics::new() {
+        Ok(metrics) => metrics,
+        Err(err) => {
+            tracing::error!(error = %err, "failed to set up Prometheus metrics");
+            std::process::exit(1);
+        }
+    };
 
     let clients: Result<Vec<PiHoleClientHandle>, _> = client_configs
         .into_iter()
@@ -48,18 +52,16 @@ async fn main() {
         }
     };
 
-    let upstream: SharedUpstreamHealth =
-        Arc::new(std::sync::RwLock::new(UpstreamHealth::default()));
     let clients = Arc::new(clients);
 
-    if let Err(err) = probe_pihole_targets(clients.as_ref(), Arc::clone(&upstream)).await {
+    if let Err(err) = probe_pihole_targets(clients.as_ref(), Arc::clone(&metrics)).await {
         tracing::error!("{err}");
         std::process::exit(1);
     }
 
     let app = router(AppState {
         clients: Arc::clone(&clients),
-        upstream: Arc::clone(&upstream),
+        metrics: Arc::clone(&metrics),
     });
 
     let ip: IpAddr = match env_config.bind_addr.parse() {
@@ -74,42 +76,26 @@ async fn main() {
         }
     };
     let addr = SocketAddr::from((ip, env_config.port));
-    if env_config.tls_enabled() {
-        let cert_file = env_config
-            .tls_cert_file
-            .as_ref()
-            .expect("tls_cert_file set when tls_enabled");
-        let key_file = env_config
-            .tls_key_file
-            .as_ref()
-            .expect("tls_key_file set when tls_enabled");
 
-        pihole_exporter::tls::serve(addr, app, cert_file, key_file, shutdown_signal()).await;
-        return;
+    if let Err(err) = serve(
+        app,
+        addr,
+        env_config.tls_cert_file.as_deref(),
+        env_config.tls_key_file.as_deref(),
+        shutdown_signal(),
+    )
+    .await
+    {
+        tracing::error!("{err}");
+        std::process::exit(1);
     }
 
-    let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(listener) => listener,
-        Err(err) => {
-            tracing::error!(%addr, error = %err, "failed to bind HTTP server");
-            std::process::exit(1);
-        }
-    };
-
-    tracing::info!(%addr, "metrics server listening");
-    tracing::info!("available endpoints: /metrics /healthz /readiness /liveness");
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("HTTP server error");
-
-    tracing::info!("pihole-exporter HTTP server stopped");
+    tracing::info!("pihole-exporter stopped");
 }
 
 async fn probe_pihole_targets(
     clients: &[PiHoleClientHandle],
-    upstream: SharedUpstreamHealth,
+    metrics: Arc<Metrics>,
 ) -> Result<(), String> {
     tracing::info!(
         count = clients.len(),
@@ -136,15 +122,14 @@ async fn probe_pihole_targets(
             "fetching Pi-hole metrics"
         );
 
-        if scrape_and_update_health(clients, &upstream).await.is_ok() {
+        if scrape_and_update_health(clients, metrics.as_ref()).await.is_ok() {
             tracing::info!(attempt, "Pi-hole fetch successful");
             return Ok(());
         }
 
-        last_error = upstream
-            .read()
-            .ok()
-            .and_then(|health| health.status().err())
+        last_error = metrics
+            .upstream_status()
+            .err()
             .unwrap_or_else(|| "Pi-hole fetch failed".to_string());
     }
 
@@ -154,6 +139,8 @@ async fn probe_pihole_targets(
 }
 
 fn init_logging(debug: bool) {
+    use tracing_subscriber::EnvFilter;
+
     let filter = if debug {
         EnvFilter::new("debug")
     } else {
@@ -165,30 +152,4 @@ fn init_logging(debug: bool) {
         .with_target(false)
         .with_writer(std::io::stderr)
         .init();
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install CTRL+C handler");
-    };
-
-    #[cfg(unix)]
-    {
-        use tokio::signal::unix::{signal, SignalKind};
-        let mut terminate =
-            signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
-        tokio::select! {
-            () = ctrl_c => {},
-            _ = terminate.recv() => {},
-        }
-    }
-
-    #[cfg(not(unix))]
-    {
-        ctrl_c.await;
-    }
-
-    tracing::info!("shutdown signal received");
 }
