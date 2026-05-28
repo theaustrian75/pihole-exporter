@@ -63,7 +63,7 @@ docker compose --project-directory examples up -d
 
 Prometheus can scrape `http://<host>:9617/metrics`. When Pi-hole runs on the same machine as Docker, set `PIHOLE_HOSTNAME` to the host's LAN IP (not `127.0.0.1` from inside the container).
 
-The image healthcheck script (`docker-healthcheck.sh`) probes `/healthz` on `127.0.0.1:$PORT` (HTTP by default, HTTPS when `TLS_CERT_FILE` and `TLS_KEY_FILE` are set). The container is marked unhealthy when Pi-hole is unreachable. Use `/liveness` for a process-only probe (always `200 ok`) in Kubernetes liveness checks.
+The image healthcheck script (`docker-healthcheck.sh`) probes `/healthz` on `127.0.0.1:$PORT` (port from `BIND_ADDR` + `PORT`, default `0.0.0.0:9617`; HTTP by default, HTTPS when `TLS_CERT_FILE` and `TLS_KEY_FILE` are set and the files exist). The container is marked unhealthy when Pi-hole is unreachable. Use `/liveness` for a process-only probe (always `200 ok`) in Kubernetes liveness checks.
 
 ## Usage
 
