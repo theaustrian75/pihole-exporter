@@ -53,6 +53,16 @@ docker run \
   pihole-exporter:latest
 ```
 
+### Using Docker Compose
+
+```bash
+cp examples/.env.example examples/.env
+# edit examples/.env with your Pi-hole hostname and password/token
+docker compose --project-directory examples up -d
+```
+
+Prometheus can scrape `http://<host>:9617/metrics`. When Pi-hole runs on the same machine as Docker, set `PIHOLE_HOSTNAME` to the host's LAN IP (not `127.0.0.1` from inside the container).
+
 ## Usage
 
 Using a password:
@@ -90,10 +100,26 @@ All options can be set via CLI flags or environment variables.
 | `--bind-addr` | `BIND_ADDR` | `0.0.0.0` | Exporter listen address |
 | `--port` | `PORT` | `9617` | Exporter listen port |
 | `--timeout` | `TIMEOUT` | `5s` | Pi-hole request timeout |
-| `--skip-tls-verification` | `SKIP_TLS_VERIFICATION` | `false` | Skip TLS certificate verification |
+| `--skip-tls-verification` | `SKIP_TLS_VERIFICATION` | `false` | Skip TLS certificate verification when connecting to Pi-hole |
+| `--tls-cert-file` | `TLS_CERT_FILE` | | PEM certificate for the exporter HTTPS server |
+| `--tls-key-file` | `TLS_KEY_FILE` | | PEM private key for the exporter HTTPS server |
 | `--debug` | `DEBUG` | `false` | Enable verbose logging |
 
 A single exporter instance can monitor multiple Pi-hole hosts by providing comma-separated values. When port, protocol, and password are the same for all instances, specify them once.
+
+### Exporter HTTPS
+
+By default the exporter listens over plain HTTP. To serve HTTPS instead, provide a PEM certificate and private key:
+
+```bash
+./pihole-exporter \
+  --pihole-hostname 192.168.1.10 \
+  --pihole-password "$API_TOKEN" \
+  --tls-cert-file /path/to/tls.crt \
+  --tls-key-file /path/to/tls.key
+```
+
+Prometheus should then scrape `https://<host>:9617/metrics` (configure `tls_config` or `insecure_skip_verify` as appropriate).
 
 ## HTTP endpoints
 

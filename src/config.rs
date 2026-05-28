@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::Parser;
@@ -65,6 +66,14 @@ pub struct Cli {
     /// Enable debug (verbose) output.
     #[arg(long = "debug", env = "DEBUG", default_value_t = false)]
     pub debug: bool,
+
+    /// PEM-encoded TLS certificate for the exporter HTTP server.
+    #[arg(long = "tls_cert_file", env = "TLS_CERT_FILE")]
+    pub tls_cert_file: Option<PathBuf>,
+
+    /// PEM-encoded TLS private key for the exporter HTTP server.
+    #[arg(long = "tls_key_file", env = "TLS_KEY_FILE")]
+    pub tls_key_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +87,8 @@ pub struct EnvConfig {
     pub timeout: Duration,
     pub skip_tls_verification: bool,
     pub debug: bool,
+    pub tls_cert_file: Option<PathBuf>,
+    pub tls_key_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +111,8 @@ pub enum ConfigError {
     WrongPasswordCount,
     #[error("invalid base URL {0}: hostname and port may be duplicated (use either host:port or separate PIHOLE_PORT)")]
     InvalidBaseUrl(String),
+    #[error("TLS_CERT_FILE and TLS_KEY_FILE must both be set to enable HTTPS")]
+    IncompleteTlsConfig,
 }
 
 impl From<Cli> for EnvConfig {
@@ -114,6 +127,8 @@ impl From<Cli> for EnvConfig {
             timeout: cli.timeout,
             skip_tls_verification: cli.skip_tls_verification,
             debug: cli.debug,
+            tls_cert_file: cli.tls_cert_file,
+            tls_key_file: cli.tls_key_file,
         }
     }
 }
@@ -121,6 +136,7 @@ impl From<Cli> for EnvConfig {
 impl EnvConfig {
     pub fn from_cli(cli: Cli) -> Result<(Self, Vec<ClientConfig>), ConfigError> {
         let env = EnvConfig::from(cli);
+        env.validate_tls()?;
         env.log_startup();
         if env.debug {
             env.log_debug();
@@ -129,12 +145,24 @@ impl EnvConfig {
         Ok((env, clients))
     }
 
+    pub fn tls_enabled(&self) -> bool {
+        self.tls_cert_file.is_some()
+    }
+
+    pub fn validate_tls(&self) -> Result<(), ConfigError> {
+        match (&self.tls_cert_file, &self.tls_key_file) {
+            (Some(_), Some(_)) | (None, None) => Ok(()),
+            _ => Err(ConfigError::IncompleteTlsConfig),
+        }
+    }
+
     fn log_startup(&self) {
         tracing::info!(
             bind_addr = %self.bind_addr,
             port = %self.port,
             timeout = ?self.timeout,
             skip_tls_verification = self.skip_tls_verification,
+            tls_enabled = self.tls_enabled(),
             pi_hole_hosts = self.pihole_hostname.len(),
             "exporter configuration loaded"
         );
@@ -155,6 +183,12 @@ impl EnvConfig {
         tracing::debug!(timeout = ?self.timeout);
         tracing::debug!(skip_tls_verification = %self.skip_tls_verification);
         tracing::debug!(debug = %self.debug);
+        if let Some(cert_file) = &self.tls_cert_file {
+            tracing::debug!(tls_cert_file = %cert_file.display());
+        }
+        if let Some(key_file) = &self.tls_key_file {
+            tracing::debug!(tls_key_file = %key_file.display());
+        }
         tracing::debug!("------------------------------------");
     }
 
@@ -296,6 +330,8 @@ mod tests {
             timeout: Duration::from_secs(5),
             skip_tls_verification: false,
             debug: false,
+            tls_cert_file: None,
+            tls_key_file: None,
         }
     }
 
@@ -382,5 +418,25 @@ mod tests {
 
         client.pihole_protocol = "https".to_string();
         assert!(client.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_tls_requires_both_files() {
+        let env = EnvConfig {
+            tls_cert_file: Some(PathBuf::from("/certs/tls.crt")),
+            tls_key_file: None,
+            ..default_env()
+        };
+        assert!(matches!(
+            env.validate_tls(),
+            Err(ConfigError::IncompleteTlsConfig)
+        ));
+
+        let env = EnvConfig {
+            tls_key_file: Some(PathBuf::from("/certs/tls.key")),
+            ..env
+        };
+        assert!(env.validate_tls().is_ok());
+        assert!(env.tls_enabled());
     }
 }
