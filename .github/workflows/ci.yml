@@ -81,6 +81,9 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # OCI attestations omit Docker Config.Healthcheck; Podman needs it (containers/podman#18904).
+          provenance: false
+          sbom: false
           annotations: |
             index:org.opencontainers.image.description=Prometheus exporter for Pi-hole.
             manifest:org.opencontainers.image.description=Prometheus exporter for Pi-hole.
