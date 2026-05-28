@@ -1,33 +1,24 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$TARGETPLATFORM rust:1-alpine3.23 AS builder
+FROM rust:1-alpine3.23 AS builder
 
 RUN apk add --no-cache musl-dev git
 
 WORKDIR /build
 
-COPY Cargo.toml ./
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
-ARG TARGETARCH
-RUN set -eu; \
-    case "${TARGETARCH}" in \
-        amd64) RUST_TARGET=x86_64-unknown-linux-musl ;; \
-        arm64) RUST_TARGET=aarch64-unknown-linux-musl ;; \
-        *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    rustup target add "${RUST_TARGET}"; \
-    cargo build --release --target "${RUST_TARGET}"; \
-    install -Dm755 "/build/target/${RUST_TARGET}/release/pihole-exporter" /build/pihole-exporter
+RUN cargo build --locked --release --bin pihole-exporter
 
-FROM --platform=$TARGETPLATFORM alpine:3.23
-
-RUN apk add --no-cache ca-certificates wget
+FROM alpine:3.23
 
 LABEL org.opencontainers.image.description="Prometheus exporter for Pi-hole"
 
+RUN apk add --no-cache ca-certificates wget
+
 WORKDIR /app/
-COPY --from=builder /build/pihole-exporter ./pihole-exporter
+COPY --from=builder /build/target/release/pihole-exporter ./pihole-exporter
 
 EXPOSE 9617
 

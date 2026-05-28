@@ -172,13 +172,20 @@ impl PiHoleClientHandle {
             database,
             sensors,
         ) = tokio::join!(
-            self.api_client.fetch_data::<StatsSummary>("/api/stats/summary"),
-            self.api_client.fetch_data::<TopDomains>("/api/stats/top_domains?blocked=true&count=10"),
-            self.api_client.fetch_data::<TopDomains>("/api/stats/top_domains?blocked=false&count=10"),
-            self.api_client.fetch_data::<TopClients>("/api/stats/top_clients?blocked=true&count=10"),
-            self.api_client.fetch_data::<TopClients>("/api/stats/top_clients?blocked=false&count=10"),
-            self.api_client.fetch_data::<Upstreams>("/api/stats/upstreams"),
-            self.api_client.fetch_data::<BlockingStatus>("/api/dns/blocking"),
+            self.api_client
+                .fetch_data::<StatsSummary>("/api/stats/summary"),
+            self.api_client
+                .fetch_data::<TopDomains>("/api/stats/top_domains?blocked=true&count=10"),
+            self.api_client
+                .fetch_data::<TopDomains>("/api/stats/top_domains?blocked=false&count=10"),
+            self.api_client
+                .fetch_data::<TopClients>("/api/stats/top_clients?blocked=true&count=10"),
+            self.api_client
+                .fetch_data::<TopClients>("/api/stats/top_clients?blocked=false&count=10"),
+            self.api_client
+                .fetch_data::<Upstreams>("/api/stats/upstreams"),
+            self.api_client
+                .fetch_data::<BlockingStatus>("/api/dns/blocking"),
             self.fetch_optional::<HistoryResponse>("/api/history"),
             self.fetch_optional::<VersionResponse>("/api/info/version"),
             self.fetch_optional::<FtlResponse>("/api/info/ftl"),
@@ -192,8 +199,12 @@ impl PiHoleClientHandle {
             blocked_domains: blocked_domains.map_err(ClientError::BlockedDomains)?,
             permitted_domains: permitted_domains.map_err(ClientError::PermittedDomains)?,
             clients: merge_clients(
-                &permitted_clients.map_err(ClientError::PermittedClients)?.clients,
-                &blocked_clients.map_err(ClientError::BlockedClients)?.clients,
+                &permitted_clients
+                    .map_err(ClientError::PermittedClients)?
+                    .clients,
+                &blocked_clients
+                    .map_err(ClientError::BlockedClients)?
+                    .clients,
             ),
             upstreams: upstreams.map_err(ClientError::Upstreams)?,
             pi_hole_status: pi_hole_status.map_err(ClientError::Status)?,
@@ -206,10 +217,7 @@ impl PiHoleClientHandle {
         })
     }
 
-    async fn fetch_optional<T: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-    ) -> Option<T> {
+    async fn fetch_optional<T: serde::de::DeserializeOwned>(&self, endpoint: &str) -> Option<T> {
         match self.api_client.fetch_data(endpoint).await {
             Ok(value) => Some(value),
             Err(err) => {

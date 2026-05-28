@@ -4,7 +4,11 @@ use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
 pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
 
 pub static DOMAINS_BLOCKED: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("domains_being_blocked", "This represent the number of domains being blocked", &["hostname"])
+    register_metric(
+        "domains_being_blocked",
+        "This represent the number of domains being blocked",
+        &["hostname"],
+    )
 });
 
 pub static DNS_QUERIES_TODAY: Lazy<GaugeVec> = Lazy::new(|| {
@@ -151,9 +155,8 @@ pub static QUERY_TYPES: Lazy<GaugeVec> = Lazy::new(|| {
     )
 });
 
-pub static STATUS: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("status", "This if Pi-hole is enabled", &["hostname"])
-});
+pub static STATUS: Lazy<GaugeVec> =
+    Lazy::new(|| register_metric("status", "This if Pi-hole is enabled", &["hostname"]));
 
 pub static QUERY_STATUS: Lazy<GaugeVec> = Lazy::new(|| {
     register_metric(
@@ -244,111 +247,209 @@ pub static VERSION_INFO: Lazy<GaugeVec> = Lazy::new(|| {
 });
 
 pub static FTL_UPTIME_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_uptime_seconds", "Pi-hole FTL process uptime in seconds", &["hostname"])
+    register_metric(
+        "ftl_uptime_seconds",
+        "Pi-hole FTL process uptime in seconds",
+        &["hostname"],
+    )
 });
 
-pub static FTL_PID: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_pid", "Pi-hole FTL process ID", &["hostname"])
-});
+pub static FTL_PID: Lazy<GaugeVec> =
+    Lazy::new(|| register_metric("ftl_pid", "Pi-hole FTL process ID", &["hostname"]));
 
 pub static FTL_MEM_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_mem_percent", "Pi-hole FTL memory usage percent", &["hostname"])
+    register_metric(
+        "ftl_mem_percent",
+        "Pi-hole FTL memory usage percent",
+        &["hostname"],
+    )
 });
 
 pub static FTL_CPU_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_cpu_percent", "Pi-hole FTL CPU usage percent", &["hostname"])
+    register_metric(
+        "ftl_cpu_percent",
+        "Pi-hole FTL CPU usage percent",
+        &["hostname"],
+    )
 });
 
 pub static FTL_QUERY_FREQUENCY: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_query_frequency", "Pi-hole FTL query frequency", &["hostname"])
+    register_metric(
+        "ftl_query_frequency",
+        "Pi-hole FTL query frequency",
+        &["hostname"],
+    )
 });
 
 pub static FTL_PRIVACY_LEVEL: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_privacy_level", "Pi-hole FTL privacy level", &["hostname"])
+    register_metric(
+        "ftl_privacy_level",
+        "Pi-hole FTL privacy level",
+        &["hostname"],
+    )
 });
 
 pub static FTL_DATABASE_GRAVITY: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_database_gravity", "Gravity domains in FTL database stats", &["hostname"])
+    register_metric(
+        "ftl_database_gravity",
+        "Gravity domains in FTL database stats",
+        &["hostname"],
+    )
 });
 
 pub static FTL_DATABASE_GROUPS: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_database_groups", "Groups in FTL database stats", &["hostname"])
+    register_metric(
+        "ftl_database_groups",
+        "Groups in FTL database stats",
+        &["hostname"],
+    )
 });
 
 pub static FTL_DATABASE_LISTS: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_database_lists", "Lists in FTL database stats", &["hostname"])
+    register_metric(
+        "ftl_database_lists",
+        "Lists in FTL database stats",
+        &["hostname"],
+    )
 });
 
 pub static FTL_DATABASE_CLIENTS: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("ftl_database_clients", "Clients in FTL database stats", &["hostname"])
+    register_metric(
+        "ftl_database_clients",
+        "Clients in FTL database stats",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_UPTIME_SECONDS: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_uptime_seconds", "Host system uptime in seconds", &["hostname"])
+    register_metric(
+        "system_uptime_seconds",
+        "Host system uptime in seconds",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_RAM_TOTAL_KB: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_ram_total_kb", "Host RAM total in kilobytes", &["hostname"])
+    register_metric(
+        "system_ram_total_kb",
+        "Host RAM total in kilobytes",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_RAM_FREE_KB: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_ram_free_kb", "Host RAM free in kilobytes", &["hostname"])
+    register_metric(
+        "system_ram_free_kb",
+        "Host RAM free in kilobytes",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_RAM_USED_KB: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_ram_used_kb", "Host RAM used in kilobytes", &["hostname"])
+    register_metric(
+        "system_ram_used_kb",
+        "Host RAM used in kilobytes",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_RAM_AVAILABLE_KB: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_ram_available_kb", "Host RAM available in kilobytes", &["hostname"])
+    register_metric(
+        "system_ram_available_kb",
+        "Host RAM available in kilobytes",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_RAM_USED_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_ram_used_percent", "Host RAM used percent", &["hostname"])
+    register_metric(
+        "system_ram_used_percent",
+        "Host RAM used percent",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_SWAP_TOTAL_KB: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_swap_total_kb", "Host swap total in kilobytes", &["hostname"])
+    register_metric(
+        "system_swap_total_kb",
+        "Host swap total in kilobytes",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_SWAP_FREE_KB: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_swap_free_kb", "Host swap free in kilobytes", &["hostname"])
+    register_metric(
+        "system_swap_free_kb",
+        "Host swap free in kilobytes",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_SWAP_USED_KB: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_swap_used_kb", "Host swap used in kilobytes", &["hostname"])
+    register_metric(
+        "system_swap_used_kb",
+        "Host swap used in kilobytes",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_SWAP_USED_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_swap_used_percent", "Host swap used percent", &["hostname"])
+    register_metric(
+        "system_swap_used_percent",
+        "Host swap used percent",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_CPU_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_cpu_percent", "Host CPU usage percent", &["hostname"])
+    register_metric(
+        "system_cpu_percent",
+        "Host CPU usage percent",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_CPU_NPROCS: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_cpu_nprocs", "Host CPU processor count", &["hostname"])
+    register_metric(
+        "system_cpu_nprocs",
+        "Host CPU processor count",
+        &["hostname"],
+    )
 });
 
-pub static SYSTEM_LOAD: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_load", "Host load average", &["hostname", "period"])
-});
+pub static SYSTEM_LOAD: Lazy<GaugeVec> =
+    Lazy::new(|| register_metric("system_load", "Host load average", &["hostname", "period"]));
 
 pub static SYSTEM_FTL_MEM_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_ftl_mem_percent", "FTL memory usage percent from system info", &["hostname"])
+    register_metric(
+        "system_ftl_mem_percent",
+        "FTL memory usage percent from system info",
+        &["hostname"],
+    )
 });
 
 pub static SYSTEM_FTL_CPU_PERCENT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("system_ftl_cpu_percent", "FTL CPU usage percent from system info", &["hostname"])
+    register_metric(
+        "system_ftl_cpu_percent",
+        "FTL CPU usage percent from system info",
+        &["hostname"],
+    )
 });
 
 pub static DATABASE_SIZE_BYTES: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("database_size_bytes", "Pi-hole query database size in bytes", &["hostname"])
+    register_metric(
+        "database_size_bytes",
+        "Pi-hole query database size in bytes",
+        &["hostname"],
+    )
 });
 
 pub static DATABASE_QUERIES: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("database_queries", "Queries stored in the in-memory database", &["hostname"])
+    register_metric(
+        "database_queries",
+        "Queries stored in the in-memory database",
+        &["hostname"],
+    )
 });
 
 pub static DATABASE_EARLIEST_TIMESTAMP: Lazy<GaugeVec> = Lazy::new(|| {
@@ -360,7 +461,11 @@ pub static DATABASE_EARLIEST_TIMESTAMP: Lazy<GaugeVec> = Lazy::new(|| {
 });
 
 pub static DATABASE_QUERIES_DISK: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("database_queries_disk", "Queries stored on disk", &["hostname"])
+    register_metric(
+        "database_queries_disk",
+        "Queries stored on disk",
+        &["hostname"],
+    )
 });
 
 pub static DATABASE_EARLIEST_TIMESTAMP_DISK: Lazy<GaugeVec> = Lazy::new(|| {
@@ -372,11 +477,19 @@ pub static DATABASE_EARLIEST_TIMESTAMP_DISK: Lazy<GaugeVec> = Lazy::new(|| {
 });
 
 pub static CPU_TEMP: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("cpu_temp", "CPU temperature reported by Pi-hole sensors", &["hostname", "unit"])
+    register_metric(
+        "cpu_temp",
+        "CPU temperature reported by Pi-hole sensors",
+        &["hostname", "unit"],
+    )
 });
 
 pub static CPU_TEMP_HOT_LIMIT: Lazy<GaugeVec> = Lazy::new(|| {
-    register_metric("cpu_temp_hot_limit", "CPU temperature hot limit", &["hostname", "unit"])
+    register_metric(
+        "cpu_temp_hot_limit",
+        "CPU temperature hot limit",
+        &["hostname", "unit"],
+    )
 });
 
 pub static SCRAPE_SUCCESS: Lazy<GaugeVec> = Lazy::new(|| {
@@ -404,11 +517,8 @@ pub static LAST_SCRAPE_TIMESTAMP: Lazy<GaugeVec> = Lazy::new(|| {
 });
 
 fn register_metric(name: &str, help: &str, label_names: &[&str]) -> GaugeVec {
-    let metric = GaugeVec::new(
-        Opts::new(name, help).namespace("pihole"),
-        label_names,
-    )
-    .expect("valid metric options");
+    let metric = GaugeVec::new(Opts::new(name, help).namespace("pihole"), label_names)
+        .expect("valid metric options");
 
     REGISTRY
         .register(Box::new(metric.clone()))

@@ -90,7 +90,12 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
-    pub fn new(base_url: String, password: String, timeout: Duration, skip_tls_verification: bool) -> Self {
+    pub fn new(
+        base_url: String,
+        password: String,
+        timeout: Duration,
+        skip_tls_verification: bool,
+    ) -> Self {
         let mut builder = Client::builder().timeout(timeout);
 
         if skip_tls_verification {
@@ -169,7 +174,10 @@ impl ApiClient {
                 return Err(ApiError::AuthStatus(status.as_u16()));
             }
 
-            let body = response.bytes().await.map_err(|source| map_auth_error(url.clone(), source))?;
+            let body = response
+                .bytes()
+                .await
+                .map_err(|source| map_auth_error(url.clone(), source))?;
             if body.len() > MAX_RESPONSE_SIZE {
                 return Err(ApiError::AuthStatus(413));
             }
@@ -241,7 +249,10 @@ impl ApiClient {
             return Err(ApiError::BadStatus(status.as_u16()));
         }
 
-        let body = response.bytes().await.map_err(|source| map_request_error(url.clone(), source))?;
+        let body = response
+            .bytes()
+            .await
+            .map_err(|source| map_request_error(url.clone(), source))?;
         if body.len() > MAX_RESPONSE_SIZE {
             return Err(ApiError::BadStatus(413));
         }
