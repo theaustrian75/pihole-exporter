@@ -1,0 +1,31 @@
+services:
+  pihole-exporter:
+    image: ghcr.io/theaustrian75/pihole-exporter:latest
+    container_name: pihole-exporter
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-9617}:9617"
+    environment:
+      PIHOLE_HOSTNAME: ${PIHOLE_HOSTNAME:-192.168.1.2}
+      PIHOLE_PASSWORD: ${PIHOLE_PASSWORD:?set PIHOLE_PASSWORD in .env}
+      PIHOLE_PORT: ${PIHOLE_PORT:-80}
+      PIHOLE_PROTOCOL: ${PIHOLE_PROTOCOL:-http}
+      # PIHOLE_HOSTNAME: pihole1.example.com,pihole2.example.com
+      # PIHOLE_PASSWORD: token1,token2
+      TIMEOUT: ${TIMEOUT:-5s}
+      SKIP_TLS_VERIFICATION: ${SKIP_TLS_VERIFICATION:-false}
+      DEBUG: ${DEBUG:-false}
+      # TLS_CERT_FILE: /certs/tls.crt
+      # TLS_KEY_FILE: /certs/tls.key
+    # volumes:
+    #   - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9617/healthz >/dev/null || exit 1"]
+      # With TLS enabled, use:
+      # test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://127.0.0.1:9617/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3

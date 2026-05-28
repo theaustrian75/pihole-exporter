@@ -2,6 +2,7 @@ mod config;
 mod metrics;
 mod pihole;
 mod server;
+mod tls;
 
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -74,6 +75,20 @@ async fn main() {
         }
     };
     let addr = SocketAddr::from((ip, env_config.port));
+    if env_config.tls_enabled() {
+        let cert_file = env_config
+            .tls_cert_file
+            .as_ref()
+            .expect("tls_cert_file set when tls_enabled");
+        let key_file = env_config
+            .tls_key_file
+            .as_ref()
+            .expect("tls_key_file set when tls_enabled");
+
+        tls::serve(addr, app, cert_file, key_file, shutdown_signal()).await;
+        return;
+    }
+
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(listener) => listener,
         Err(err) => {
