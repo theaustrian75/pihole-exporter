@@ -1,5 +1,7 @@
+use std::sync::{Arc, Once, RwLock};
+
 use once_cell::sync::Lazy;
-use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
+use prometheus::{Encoder, GaugeVec, IntCounter, Opts, Registry, TextEncoder};
 
 pub static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);
 
@@ -534,7 +536,78 @@ macro_rules! force_metrics {
     };
 }
 
-pub fn init() {
+#[derive(Debug, Default)]
+struct UpstreamHealth {
+    ready: bool,
+    last_error: Option<String>,
+}
+
+static GAUGES_INIT: Once = Once::new();
+
+static FETCH_FAILURES: Lazy<IntCounter> = Lazy::new(|| {
+    let fetch_failures = IntCounter::new(
+        "pihole_fetch_failures_total",
+        "Total failed Pi-hole metric fetches",
+    )
+    .expect("valid fetch_failures counter");
+    REGISTRY
+        .register(Box::new(fetch_failures.clone()))
+        .expect("fetch_failures counter must register once");
+    fetch_failures
+});
+
+/// Prometheus registry plus upstream fetch health (mirrors ecobee-exporter `Metrics`).
+pub struct Metrics {
+    upstream: RwLock<UpstreamHealth>,
+}
+
+impl Metrics {
+    pub fn new() -> Result<Arc<Self>, prometheus::Error> {
+        GAUGES_INIT.call_once(register_gauges);
+        Lazy::force(&FETCH_FAILURES);
+
+        Ok(Arc::new(Self {
+            upstream: RwLock::new(UpstreamHealth::default()),
+        }))
+    }
+
+    pub fn mark_success(&self) {
+        if let Ok(mut health) = self.upstream.write() {
+            health.ready = true;
+            health.last_error = None;
+        }
+    }
+
+    pub fn record_fetch_failure(&self, error: &str) {
+        FETCH_FAILURES.inc();
+        if let Ok(mut health) = self.upstream.write() {
+            health.ready = false;
+            health.last_error = Some(error.to_string());
+        }
+    }
+
+    /// `Ok(())` when the last metrics scrape succeeded; otherwise the error detail.
+    pub fn upstream_status(&self) -> Result<(), String> {
+        let health = self
+            .upstream
+            .read()
+            .map_err(|_| "upstream health lock poisoned".to_string())?;
+        if health.ready {
+            Ok(())
+        } else {
+            Err(health
+                .last_error
+                .clone()
+                .unwrap_or_else(|| "no successful fetch yet".to_string()))
+        }
+    }
+
+    pub fn render(&self) -> Result<String, prometheus::Error> {
+        encode_metrics()
+    }
+}
+
+fn register_gauges() {
     force_metrics!(
         DOMAINS_BLOCKED,
         DNS_QUERIES_TODAY,
@@ -612,4 +685,25 @@ pub fn encode_metrics() -> Result<String, prometheus::Error> {
     let mut buffer = Vec::new();
     encoder.encode(&metric_families, &mut buffer)?;
     Ok(String::from_utf8(buffer).expect("prometheus output is valid UTF-8"))
+}
+
+#[cfg(test)]
+mod upstream_tests {
+    use super::Metrics;
+
+    #[test]
+    fn status_unavailable_until_first_success() {
+        let metrics = Metrics::new().expect("registry");
+        assert!(metrics.upstream_status().is_err());
+    }
+
+    #[test]
+    fn status_ok_after_success_and_err_after_failure() {
+        let metrics = Metrics::new().expect("registry");
+        metrics.mark_success();
+        assert!(metrics.upstream_status().is_ok());
+
+        metrics.record_fetch_failure("timeout");
+        assert_eq!(metrics.upstream_status().unwrap_err(), "timeout".to_string());
+    }
 }

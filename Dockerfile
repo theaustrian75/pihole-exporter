@@ -17,13 +17,16 @@ LABEL org.opencontainers.image.description="Prometheus exporter for Pi-hole"
 
 RUN apk add --no-cache ca-certificates wget
 
+COPY docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+RUN chmod +x /usr/local/bin/docker-healthcheck.sh
+
 WORKDIR /app/
 COPY --from=builder /build/target/release/pihole-exporter ./pihole-exporter
 
 EXPOSE 9617
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -qO- http://127.0.0.1:9617/healthz >/dev/null || exit 1
+    CMD ["/usr/local/bin/docker-healthcheck.sh"]
 
 USER 65532:65532
 

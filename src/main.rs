@@ -1,19 +1,12 @@
-mod config;
-mod metrics;
-mod pihole;
-mod server;
-mod tls;
-
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
 use clap::Parser;
-use tracing_subscriber::EnvFilter;
-
-use crate::config::{Cli, EnvConfig};
-use crate::pihole::PiHoleClientHandle;
-use crate::server::{router, AppState};
+use pihole_exporter::config::{Cli, EnvConfig};
+use pihole_exporter::metrics::Metrics;
+use pihole_exporter::pihole::PiHoleClientHandle;
+use pihole_exporter::server::{router, run as serve, scrape_and_update_health, shutdown_signal, AppState};
 
 const STARTUP_MAX_ATTEMPTS: u32 = 3;
 const STARTUP_RETRY_DELAY: Duration = Duration::from_millis(500);
@@ -36,8 +29,13 @@ async fn main() {
         }
     };
 
-    tracing::info!("registering prometheus metrics");
-    metrics::init();
+    let metrics = match Metrics::new() {
+        Ok(metrics) => metrics,
+        Err(err) => {
+            tracing::error!(error = %err, "failed to set up Prometheus metrics");
+            std::process::exit(1);
+        }
+    };
 
     let clients: Result<Vec<PiHoleClientHandle>, _> = client_configs
         .into_iter()
@@ -54,13 +52,16 @@ async fn main() {
         }
     };
 
-    if let Err(err) = probe_pihole_targets(&clients, env_config.timeout).await {
+    let clients = Arc::new(clients);
+
+    if let Err(err) = probe_pihole_targets(clients.as_ref(), Arc::clone(&metrics)).await {
         tracing::error!("{err}");
         std::process::exit(1);
     }
 
     let app = router(AppState {
-        clients: Arc::new(clients),
+        clients: Arc::clone(&clients),
+        metrics: Arc::clone(&metrics),
     });
 
     let ip: IpAddr = match env_config.bind_addr.parse() {
@@ -75,129 +76,71 @@ async fn main() {
         }
     };
     let addr = SocketAddr::from((ip, env_config.port));
-    if env_config.tls_enabled() {
-        let cert_file = env_config
-            .tls_cert_file
-            .as_ref()
-            .expect("tls_cert_file set when tls_enabled");
-        let key_file = env_config
-            .tls_key_file
-            .as_ref()
-            .expect("tls_key_file set when tls_enabled");
 
-        tls::serve(addr, app, cert_file, key_file, shutdown_signal()).await;
-        return;
+    if let Err(err) = serve(
+        app,
+        addr,
+        env_config.tls_cert_file.as_deref(),
+        env_config.tls_key_file.as_deref(),
+        shutdown_signal(),
+    )
+    .await
+    {
+        tracing::error!("{err}");
+        std::process::exit(1);
     }
 
-    let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(listener) => listener,
-        Err(err) => {
-            tracing::error!(%addr, error = %err, "failed to bind HTTP server");
-            std::process::exit(1);
-        }
-    };
-
-    tracing::info!(%addr, "HTTP server listening");
-    tracing::info!("available endpoints: /metrics /healthz /readiness /liveness");
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("HTTP server error");
-
-    tracing::info!("pihole-exporter HTTP server stopped");
+    tracing::info!("pihole-exporter stopped");
 }
 
 async fn probe_pihole_targets(
     clients: &[PiHoleClientHandle],
-    connection_timeout: Duration,
+    metrics: Arc<Metrics>,
 ) -> Result<(), String> {
-    let probe_timeout = startup_probe_timeout(connection_timeout);
-
     tracing::info!(
         count = clients.len(),
         attempts = STARTUP_MAX_ATTEMPTS,
-        timeout = ?probe_timeout,
         "checking Pi-hole connectivity"
     );
 
-    for client in clients {
-        let hostname = client.hostname().to_string();
-        let mut last_error = String::new();
-        let mut connected = false;
-
-        for attempt in 1..=STARTUP_MAX_ATTEMPTS {
-            if attempt > 1 {
-                let delay = STARTUP_RETRY_DELAY * (attempt - 1);
-                tracing::warn!(
-                    host = %hostname,
-                    attempt,
-                    max_attempts = STARTUP_MAX_ATTEMPTS,
-                    retry_in = ?delay,
-                    "retrying Pi-hole connection"
-                );
-                tokio::time::sleep(delay).await;
-            }
-
-            tracing::info!(
-                host = %hostname,
+    let mut last_error = "no successful fetch yet".to_string();
+    for attempt in 1..=STARTUP_MAX_ATTEMPTS {
+        if attempt > 1 {
+            let delay = STARTUP_RETRY_DELAY * (attempt - 1);
+            tracing::warn!(
                 attempt,
                 max_attempts = STARTUP_MAX_ATTEMPTS,
-                timeout = ?probe_timeout,
-                "connecting to Pi-hole"
+                retry_in = ?delay,
+                "retrying Pi-hole fetch"
             );
-
-            match tokio::time::timeout(probe_timeout, client.check_connection()).await {
-                Ok(Ok(())) => {
-                    tracing::info!(
-                        host = %hostname,
-                        attempt,
-                        "Pi-hole connection successful"
-                    );
-                    connected = true;
-                    break;
-                }
-                Ok(Err(err)) => {
-                    last_error = err.to_string();
-                    tracing::error!(
-                        host = %hostname,
-                        attempt,
-                        max_attempts = STARTUP_MAX_ATTEMPTS,
-                        error = %err,
-                        "Pi-hole connection failed"
-                    );
-                }
-                Err(_) => {
-                    last_error = format!("connection timed out after {}s", probe_timeout.as_secs());
-                    tracing::error!(
-                        host = %hostname,
-                        attempt,
-                        max_attempts = STARTUP_MAX_ATTEMPTS,
-                        timeout = ?probe_timeout,
-                        "Pi-hole connection timed out"
-                    );
-                }
-            }
+            tokio::time::sleep(delay).await;
         }
 
-        if !connected {
-            return Err(format!(
-                "failed to connect to Pi-hole host {hostname} after {STARTUP_MAX_ATTEMPTS} attempts: {last_error}"
-            ));
+        tracing::info!(
+            attempt,
+            max_attempts = STARTUP_MAX_ATTEMPTS,
+            "fetching Pi-hole metrics"
+        );
+
+        if scrape_and_update_health(clients, metrics.as_ref()).await.is_ok() {
+            tracing::info!(attempt, "Pi-hole fetch successful");
+            return Ok(());
         }
+
+        last_error = metrics
+            .upstream_status()
+            .err()
+            .unwrap_or_else(|| "Pi-hole fetch failed".to_string());
     }
 
-    Ok(())
-}
-
-fn startup_probe_timeout(connection_timeout: Duration) -> Duration {
-    // Allow time for session authentication plus a follow-up API call.
-    connection_timeout
-        .saturating_mul(2)
-        .max(Duration::from_secs(5))
+    Err(format!(
+        "failed to fetch Pi-hole data after {STARTUP_MAX_ATTEMPTS} attempts: {last_error}"
+    ))
 }
 
 fn init_logging(debug: bool) {
+    use tracing_subscriber::EnvFilter;
+
     let filter = if debug {
         EnvFilter::new("debug")
     } else {
@@ -209,11 +152,4 @@ fn init_logging(debug: bool) {
         .with_target(false)
         .with_writer(std::io::stderr)
         .init();
-}
-
-async fn shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to install CTRL+C handler");
-    tracing::info!("shutdown signal received");
 }

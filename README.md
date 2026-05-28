@@ -63,6 +63,8 @@ docker compose --project-directory examples up -d
 
 Prometheus can scrape `http://<host>:9617/metrics`. When Pi-hole runs on the same machine as Docker, set `PIHOLE_HOSTNAME` to the host's LAN IP (not `127.0.0.1` from inside the container).
 
+The image healthcheck script (`docker-healthcheck.sh`) probes `/healthz` on `127.0.0.1:$PORT` (HTTP by default, HTTPS when `TLS_CERT_FILE` and `TLS_KEY_FILE` are set). The container is marked unhealthy when Pi-hole is unreachable. Use `/liveness` for a process-only probe (always `200 ok`) in Kubernetes liveness checks.
+
 ## Usage
 
 Using a password:
@@ -126,10 +128,10 @@ Prometheus should then scrape `https://<host>:9617/metrics` (configure `tls_conf
 | Path | Description |
 |------|-------------|
 | `/` | Service index |
-| `/metrics` | Prometheus metrics (503 if all Pi-hole hosts are unreachable) |
-| `/healthz` | Pi-hole connectivity probe (returns `ok` or an error) |
+| `/metrics` | Prometheus metrics (`503` when the last Pi-hole fetch failed) |
+| `/healthz` | Upstream readiness probe (`200 ok` after a successful fetch; `503` otherwise) |
 | `/readiness` | Same as `/healthz` |
-| `/liveness` | Same as `/healthz` |
+| `/liveness` | Always `200 ok` — process is running |
 
 ## Prometheus metrics
 
@@ -178,6 +180,7 @@ All metrics use the `pihole_` namespace and a `hostname` label.
 | `pihole_database_*` | Query database size and record counts |
 | `pihole_cpu_temp` | CPU temperature from Pi-hole sensors |
 | `pihole_scrape_success` | Last scrape succeeded (1/0) |
+| `pihole_fetch_failures_total` | Total failed Pi-hole metric fetches |
 | `pihole_scrape_duration_seconds` | Last scrape duration |
 | `pihole_last_scrape_timestamp` | Unix timestamp of last successful scrape |
 
