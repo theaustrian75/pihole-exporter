@@ -40,7 +40,8 @@ async fn index() -> &'static str {
 async fn probe_clients(clients: &[PiHoleClientHandle]) -> Vec<ProbeResult> {
     let mut handles = Vec::with_capacity(clients.len());
 
-    for client in clients.iter().cloned() {
+    for client in clients {
+        let client = client.clone();
         handles.push(tokio::spawn(async move {
             let hostname = client.hostname().to_string();
             match tokio::time::timeout(HEALTH_CHECK_TIMEOUT, client.check_connection()).await {
@@ -138,7 +139,8 @@ async fn healthz(State(state): State<AppState>) -> Response {
 async fn metrics_handler(State(state): State<AppState>) -> Response {
     let mut handles = Vec::with_capacity(state.clients.len());
 
-    for client in state.clients.iter().cloned() {
+    for client in state.clients.iter() {
+        let client = client.clone();
         handles.push(tokio::spawn(async move {
             let hostname = client.hostname().to_string();
             match tokio::time::timeout(COLLECTION_TIMEOUT, client.collect_metrics()).await {

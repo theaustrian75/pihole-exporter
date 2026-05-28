@@ -184,7 +184,8 @@ mod tests {
             }
         }"#;
 
-        let parsed: VersionResponse = serde_json::from_str(json).expect("version json should parse");
+        let parsed: VersionResponse =
+            serde_json::from_str(json).expect("version json should parse");
         let docker = parsed.version.docker.expect("docker section");
         assert_eq!(
             docker.local.and_then(|d| d.version),

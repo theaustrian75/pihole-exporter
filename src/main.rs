@@ -22,7 +22,10 @@ async fn main() {
     let cli = Cli::parse();
     init_logging(cli.debug);
 
-    tracing::info!(version = env!("CARGO_PKG_VERSION"), "starting pihole-exporter");
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        "starting pihole-exporter"
+    );
 
     let (env_config, client_configs) = match EnvConfig::from_cli(cli) {
         Ok(config) => config,
@@ -38,11 +41,7 @@ async fn main() {
     let clients: Result<Vec<PiHoleClientHandle>, _> = client_configs
         .into_iter()
         .map(|config| {
-            PiHoleClientHandle::new(
-                config,
-                env_config.timeout,
-                env_config.skip_tls_verification,
-            )
+            PiHoleClientHandle::new(config, env_config.timeout, env_config.skip_tls_verification)
         })
         .collect();
 
@@ -154,10 +153,7 @@ async fn probe_pihole_targets(
                     );
                 }
                 Err(_) => {
-                    last_error = format!(
-                        "connection timed out after {}s",
-                        probe_timeout.as_secs()
-                    );
+                    last_error = format!("connection timed out after {}s", probe_timeout.as_secs());
                     tracing::error!(
                         host = %hostname,
                         attempt,

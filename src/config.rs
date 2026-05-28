@@ -7,19 +7,39 @@ use thiserror::Error;
 #[command(name = "pihole-exporter", about = "Prometheus exporter for Pi-hole")]
 pub struct Cli {
     /// Protocol(s) used to reach Pi-hole (http or https). Comma-separated for multiple hosts.
-    #[arg(long = "pihole_protocol", env = "PIHOLE_PROTOCOL", value_delimiter = ',', default_value = "http")]
+    #[arg(
+        long = "pihole_protocol",
+        env = "PIHOLE_PROTOCOL",
+        value_delimiter = ',',
+        default_value = "http"
+    )]
     pub pihole_protocol: Vec<String>,
 
     /// Hostname(s) where Pi-hole is installed. Comma-separated for multiple hosts.
-    #[arg(long = "pihole_hostname", env = "PIHOLE_HOSTNAME", value_delimiter = ',', default_value = "127.0.0.1")]
+    #[arg(
+        long = "pihole_hostname",
+        env = "PIHOLE_HOSTNAME",
+        value_delimiter = ',',
+        default_value = "127.0.0.1"
+    )]
     pub pihole_hostname: Vec<String>,
 
     /// Port(s) used by Pi-hole. Comma-separated for multiple hosts.
-    #[arg(long = "pihole_port", env = "PIHOLE_PORT", value_delimiter = ',', default_value = "80")]
+    #[arg(
+        long = "pihole_port",
+        env = "PIHOLE_PORT",
+        value_delimiter = ',',
+        default_value = "80"
+    )]
     pub pihole_port: Vec<u16>,
 
     /// Pi-hole web password or API token. Comma-separated for multiple hosts.
-    #[arg(long = "pihole_password", env = "PIHOLE_PASSWORD", value_delimiter = ',', default_value = "")]
+    #[arg(
+        long = "pihole_password",
+        env = "PIHOLE_PASSWORD",
+        value_delimiter = ',',
+        default_value = ""
+    )]
     pub pihole_password: Vec<String>,
 
     /// Address the exporter listens on.
@@ -35,7 +55,11 @@ pub struct Cli {
     pub timeout: Duration,
 
     /// Skip TLS certificate verification (do not use on untrusted networks).
-    #[arg(long = "skip_tls_verification", env = "SKIP_TLS_VERIFICATION", default_value_t = false)]
+    #[arg(
+        long = "skip_tls_verification",
+        env = "SKIP_TLS_VERIFICATION",
+        default_value_t = false
+    )]
     pub skip_tls_verification: bool,
 
     /// Enable debug (verbose) output.
