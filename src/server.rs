@@ -166,7 +166,10 @@ async fn metrics_handler(State(state): State<AppState>) -> Response {
     match state.metrics.render() {
         Ok(body) => (
             StatusCode::OK,
-            [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+            [(
+                header::CONTENT_TYPE,
+                "text/plain; version=0.0.4; charset=utf-8",
+            )],
             body,
         )
             .into_response(),

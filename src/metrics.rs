@@ -704,6 +704,9 @@ mod upstream_tests {
         assert!(metrics.upstream_status().is_ok());
 
         metrics.record_fetch_failure("timeout");
-        assert_eq!(metrics.upstream_status().unwrap_err(), "timeout".to_string());
+        assert_eq!(
+            metrics.upstream_status().unwrap_err(),
+            "timeout".to_string()
+        );
     }
 }

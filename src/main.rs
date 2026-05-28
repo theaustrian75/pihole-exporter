@@ -6,7 +6,9 @@ use clap::Parser;
 use pihole_exporter::config::{Cli, EnvConfig};
 use pihole_exporter::metrics::Metrics;
 use pihole_exporter::pihole::PiHoleClientHandle;
-use pihole_exporter::server::{router, run as serve, scrape_and_update_health, shutdown_signal, AppState};
+use pihole_exporter::server::{
+    router, run as serve, scrape_and_update_health, shutdown_signal, AppState,
+};
 
 const STARTUP_MAX_ATTEMPTS: u32 = 3;
 const STARTUP_RETRY_DELAY: Duration = Duration::from_millis(500);
@@ -122,7 +124,10 @@ async fn probe_pihole_targets(
             "fetching Pi-hole metrics"
         );
 
-        if scrape_and_update_health(clients, metrics.as_ref()).await.is_ok() {
+        if scrape_and_update_health(clients, metrics.as_ref())
+            .await
+            .is_ok()
+        {
             tracing::info!(attempt, "Pi-hole fetch successful");
             return Ok(());
         }
