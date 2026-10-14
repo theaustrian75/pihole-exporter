@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 
-FROM rust:1-alpine3.23 AS builder
+FROM rust:1-alpine3.24 AS builder
 
-RUN apk add --no-cache musl-dev git
+RUN apk upgrade --no-cache \
+    && apk add --no-cache musl-dev git
 
 WORKDIR /build
 
@@ -11,11 +12,12 @@ COPY src ./src
 
 RUN cargo build --locked --release --bin pihole-exporter
 
-FROM alpine:3.23
+FROM alpine:3.24
 
 LABEL org.opencontainers.image.description="Prometheus exporter for Pi-hole"
 
-RUN apk add --no-cache ca-certificates wget
+RUN apk upgrade --no-cache \
+    && apk add --no-cache ca-certificates wget
 
 COPY docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 RUN chmod +x /usr/local/bin/docker-healthcheck.sh
