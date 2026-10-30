@@ -23,6 +23,8 @@ const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 pub struct AppState {
     pub clients: Arc<Vec<PiHoleClientHandle>>,
     pub metrics: Arc<Metrics>,
+    /// Bounds each live `/healthz` connectivity probe.
+    pub health_check_timeout: Duration,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -119,8 +121,8 @@ pub async fn shutdown_signal() {
 async fn index() -> &'static str {
     "pihole-exporter\n\n\
        /metrics    Prometheus text format (503 when upstream fetch failed)\n\
-       /healthz    upstream readiness probe (ok or 503)\n\
-       /readiness  upstream readiness probe (ok or 503)\n\
+       /healthz    live Pi-hole connectivity probe (ok or 503)\n\
+       /readiness  cached upstream readiness (ok after a successful fetch, otherwise 503)\n\
        /liveness   process liveness probe (always ok)\n"
 }
 
@@ -129,24 +131,72 @@ async fn liveness() -> &'static str {
 }
 
 async fn readiness(State(state): State<AppState>) -> Response {
-    upstream_health_response(&state.metrics)
+    upstream_health_response(state.metrics.upstream_status(), "readiness")
 }
 
 async fn healthz(State(state): State<AppState>) -> Response {
-    upstream_health_response(&state.metrics)
+    let result =
+        probe_pihole_connectivity(state.clients.as_ref(), state.health_check_timeout).await;
+    upstream_health_response(result, "healthz")
 }
 
-fn upstream_health_response(metrics: &Metrics) -> Response {
-    match metrics.upstream_status() {
+fn upstream_health_response(result: Result<(), String>, probe: &str) -> Response {
+    match result {
         Ok(()) => (StatusCode::OK, "ok").into_response(),
         Err(detail) => {
-            tracing::error!(detail = %detail, "upstream unhealthy");
+            tracing::error!(probe, detail = %detail, "upstream unhealthy");
             (
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("error: upstream unavailable: {detail}"),
             )
                 .into_response()
         }
+    }
+}
+
+/// Check that every configured Pi-hole accepts a session and answers `/api/dns/blocking`.
+///
+/// Does not update cached scrape health. `/readiness` and `/metrics` keep using the last fetch.
+pub async fn probe_pihole_connectivity(
+    clients: &[PiHoleClientHandle],
+    timeout: Duration,
+) -> Result<(), String> {
+    let mut handles = Vec::with_capacity(clients.len());
+
+    for client in clients {
+        let client = client.clone();
+        handles.push(tokio::spawn(async move {
+            let hostname = client.hostname().to_string();
+            match tokio::time::timeout(timeout, client.check_connection()).await {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(err)) => Err(format!("{hostname}: {err}")),
+                Err(_) => Err(format!(
+                    "{hostname}: connectivity probe timed out after {timeout:?}"
+                )),
+            }
+        }));
+    }
+
+    let mut errors = Vec::new();
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => errors.push(err),
+            Err(err) => {
+                let message = format!("connectivity probe task failed: {err}");
+                tracing::error!(error = %err, "{message}");
+                errors.push(message);
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Pi-hole connectivity probe failed:\n{}",
+            errors.join("\n")
+        ))
     }
 }
 

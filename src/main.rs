@@ -64,6 +64,7 @@ async fn main() {
     let app = router(AppState {
         clients: Arc::clone(&clients),
         metrics: Arc::clone(&metrics),
+        health_check_timeout: env_config.health_check_timeout,
     });
 
     let ip: IpAddr = match env_config.bind_addr.parse() {

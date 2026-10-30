@@ -27,7 +27,9 @@ COPY --from=builder /build/target/release/pihole-exporter ./pihole-exporter
 
 EXPOSE 9617
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+# Timeout stays above HEALTH_CHECK_TIMEOUT (default 5s) so a live /healthz
+# probe can finish before Docker kills this command.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD ["/usr/local/bin/docker-healthcheck.sh"]
 
 USER 65532:65532
