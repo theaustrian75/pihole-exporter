@@ -80,12 +80,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Alpine package rebuilds are patch releases. A minor tag such as v1.3
+          # is followed by v1.3.1, not v1.4.
           next_version() {
             local tag="$1"
             if [[ "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
               echo "v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
             elif [[ "$tag" =~ ^v([0-9]+)\.([0-9]+)$ ]]; then
-              echo "v${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1))"
+              echo "v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.1"
             else
               echo "unsupported release tag: ${tag}" >&2
               return 1
