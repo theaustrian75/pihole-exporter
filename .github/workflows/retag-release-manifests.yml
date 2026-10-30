@@ -1,0 +1,330 @@
+name: Retag release manifests
+
+# One-shot: Alpine package rebuilds were published as v1.3 and v1.4.
+# Those GitHub releases are now v1.2.1 and v1.2.2. Point the image tags at
+# the original manifests and drop the retired multi-arch names.
+# Per-arch aliases (v1.3-amd64 and the rest) stay, matching isc-bind after
+# rewriting those manifests failed to preserve the image config.
+on:
+  push:
+    branches:
+      - cursor/retag-release-manifests-3036
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: retag-release-manifests
+  cancel-in-progress: false
+
+jobs:
+  retag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install crane
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/crane.tar.gz \
+            https://github.com/google/go-containerregistry/releases/download/v0.20.6/go-containerregistry_Linux_x86_64.tar.gz
+          echo "c1d593d01551f2c9a3df5ca0a0be4385a839bd9b86d4a76e18d7b17d16559127  /tmp/crane.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/crane.tar.gz -C /usr/local/bin crane
+
+      - name: Point renamed release tags at the published manifests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ghcr.io/${{ github.repository }}
+          PACKAGE: user/packages/container/pihole-exporter/versions
+        run: |
+          set -euo pipefail
+
+          # Manifests published with the Alpine rebuilds, before the git tags
+          # were renamed and CI built a fresh image from current Alpine.
+          ORIG_V13=sha256:376589d47b083cc731b040fe83d52a1d5e78682b34a5df3529743c57f15002f9
+          ORIG_V13_AMD=sha256:1ef68830e1eec27fcf98d409ffb5308ee0fc96f9d50a51f3eb9df9f43b69e35b
+          ORIG_V13_ARM=sha256:9c44d72de5a65d330acb5574bf83a6acc24b77171a1d0bc97cf1cad638e37518
+          ORIG_V14=sha256:42b099fff07202b9a2fb6cc9dea7c92601d9424518295aafa39b10969c5b521b
+          ORIG_V14_AMD=sha256:1627098dc464bcede801911a5b6100f0e248119ff34045ad7466f1889016e06f
+          ORIG_V14_ARM=sha256:36eab4a5da869c7a4935af821a1cba70ba98f9b69a597e1e03014323df142948
+          # Image built from 84340d3 when the renamed git tags were pushed.
+          # The sha-* tags stay on it, matching isc-bind.
+          SHA_INDEX=sha256:3d4f6388f635c815848c3e1f2956bcb4d7db2e18f7c44a3868c770521c5062b8
+          SHA_AMD=sha256:8912010f4e1ad2ebd08c70cb8c62d1a4f8de8347a936727e31783cfc124d8b16
+          SHA_ARM=sha256:4343b0ee7c1a1d3d025f63da1536fc3347e5d0a7f7e175b80f9c024670eaf05d
+
+          tag_exists() {
+            crane digest "${REPO}:$1" >/dev/null 2>&1
+          }
+
+          version_id() {
+            local digest="$1"
+            gh api --paginate --slurp "$PACKAGE" \
+              | jq -r --arg digest "$digest" '[.[][]] | map(select(.name==$digest) | .id) | first // empty'
+          }
+
+          tags_of() {
+            local digest="$1" id
+            id="$(version_id "$digest")"
+            if [ -z "$id" ]; then
+              echo "no package version for ${digest}" >&2
+              return 1
+            fi
+            gh api "${PACKAGE}/${id}" --jq '.metadata.container.tags[]?'
+          }
+
+          index_matches() {
+            local tag="$1" amd="$2" arm="$3"
+            crane manifest "${REPO}:${tag}" | jq -e \
+              --arg amd "$amd" --arg arm "$arm" \
+              '(.manifests // []) | length == 2
+                and (map(select(.platform.architecture=="amd64" and (.platform.os==null or .platform.os=="linux")) | .digest) == [$amd])
+                and (map(select(.platform.architecture=="arm64" and (.platform.os==null or .platform.os=="linux")) | .digest) == [$arm])' >/dev/null
+          }
+
+          index_points_at() {
+            local tag="$1" amd="$2" arm="$3" manifest
+            if index_matches "$tag" "$amd" "$arm"; then
+              return 0
+            fi
+            manifest="$(crane manifest "${REPO}:${tag}")"
+            echo "index check failed for ${REPO}:${tag}" >&2
+            jq '{mediaType, manifests}' <<<"$manifest" >&2 || true
+            return 1
+          }
+
+          require_digest() {
+            local tag="$1" expected="$2" got
+            got="$(crane digest "${REPO}:${tag}")"
+            if [ "$got" != "$expected" ]; then
+              echo "${REPO}:${tag} is ${got}, expected ${expected}" >&2
+              return 1
+            fi
+          }
+
+          retag_arch() {
+            local old="$1" new="$2" expected="$3" now
+            require_digest "$old" "$expected"
+            now="$(crane digest "${REPO}:${new}")"
+            if [ "$now" = "$expected" ]; then
+              echo "${new} already matches ${old} (${expected})"
+              return 0
+            fi
+            crane tag "${REPO}:${old}" "$new"
+            require_digest "$new" "$expected"
+            echo "${old} ${expected} -> ${new}"
+          }
+
+          retag_index() {
+            local old="$1" new="$2" expected="$3" amd="$4" arm="$5" now
+            if ! tag_exists "$old"; then
+              echo "${old} is already gone"
+              index_points_at "$new" "$amd" "$arm"
+              return 0
+            fi
+            require_digest "$old" "$expected"
+            now="$(crane digest "${REPO}:${new}")"
+            if [ "$now" = "$expected" ]; then
+              echo "${new} already on the published manifest"
+              return 0
+            fi
+            if index_matches "$new" "$amd" "$arm"; then
+              echo "${new} already references the published architecture images"
+              return 0
+            fi
+            crane tag "${REPO}:${old}" "$new"
+            require_digest "$new" "$expected"
+            echo "${old} ${expected} -> ${new}"
+          }
+
+          delete_digest() {
+            local digest="$1" only_tag="$2" id left
+            id="$(version_id "$digest")"
+            if [ -z "$id" ]; then
+              echo "no package version for ${digest}" >&2
+              return 1
+            fi
+            left="$(gh api "${PACKAGE}/${id}" --jq '[.metadata.container.tags[]?] | join(",")')"
+            if [ "$left" != "$only_tag" ]; then
+              echo "refusing to delete ${digest}; tags are [${left}], expected only ${only_tag}" >&2
+              return 1
+            fi
+            gh api --method DELETE "${PACKAGE}/${id}"
+            echo "deleted ${digest} (version ${id})"
+          }
+
+          detach_index() {
+            local keep="$1" drop="$2" orig="$3" amd="$4" arm="$5"
+            local before after tag
+            if ! tag_exists "$drop"; then
+              echo "${drop} is already gone"
+              index_points_at "$keep" "$amd" "$arm"
+              return 0
+            fi
+            before="$(crane digest "${REPO}:${drop}")"
+            if [ "$before" != "$orig" ]; then
+              echo "${drop} is ${before}, expected published manifest ${orig}" >&2
+              return 1
+            fi
+            if [ "$(crane digest "${REPO}:${keep}")" = "$before" ]; then
+              crane index append \
+                -m "${REPO}@${amd}" \
+                -m "${REPO}@${arm}" \
+                -t "${REPO}:${keep}"
+            fi
+            after="$(crane digest "${REPO}:${keep}")"
+            if [ "$after" = "$before" ]; then
+              echo "index digest for ${keep} did not change" >&2
+              return 1
+            fi
+            if [ "$(crane digest "${REPO}:${drop}")" != "$before" ]; then
+              echo "${drop} moved off the published manifest" >&2
+              return 1
+            fi
+            index_points_at "$keep" "$amd" "$arm"
+
+            sibling_file="$(mktemp)"
+            tags_of "$before" > "$sibling_file"
+            while IFS= read -r tag; do
+              [ -n "$tag" ] || continue
+              case "$tag" in
+                "$keep"|"$drop")
+                  continue
+                  ;;
+                latest|main)
+                  crane tag "${REPO}:${keep}" "$tag"
+                  echo "moved ${tag} onto ${keep}"
+                  ;;
+                *)
+                  echo "unexpected tag ${tag} on ${drop}" >&2
+                  return 1
+                  ;;
+              esac
+            done < "$sibling_file"
+
+            delete_digest "$before" "$drop"
+            local _i
+            for _i in 1 2 3 4 5 6; do
+              if ! tag_exists "$drop"; then
+                break
+              fi
+              sleep 2
+            done
+            if tag_exists "$drop"; then
+              echo "${drop} is still present" >&2
+              return 1
+            fi
+            index_points_at "$keep" "$amd" "$arm"
+            echo "${keep} is now ${after}; removed ${drop}"
+          }
+
+          delete_untagged_rebuilds() {
+            local id tags name
+            for id in "$@"; do
+              if ! gh api "${PACKAGE}/${id}" --jq .id >/dev/null 2>&1; then
+                echo "version ${id} is already gone"
+                continue
+              fi
+              tags="$(gh api "${PACKAGE}/${id}" --jq '[.metadata.container.tags[]?] | join(",")')"
+              if [ -n "$tags" ]; then
+                echo "keeping ${id} (still tagged ${tags})"
+                continue
+              fi
+              name="$(gh api "${PACKAGE}/${id}" --jq .name)"
+              case "$name" in
+                "$ORIG_V13"|"$ORIG_V13_AMD"|"$ORIG_V13_ARM"|"$ORIG_V14"|"$ORIG_V14_AMD"|"$ORIG_V14_ARM"|"$SHA_INDEX"|"$SHA_AMD"|"$SHA_ARM")
+                  echo "refusing to delete protected digest ${name} (version ${id})" >&2
+                  return 1
+                  ;;
+              esac
+              gh api --method DELETE "${PACKAGE}/${id}"
+              echo "deleted untagged rebuild ${id} (${name})"
+            done
+          }
+
+          # Tags whose digest must not move. latest and main are indexes that
+          # share the retired v1.4 manifest; detach moves those two names onto
+          # a new index of the same architecture images.
+          baseline="v1.1 v1.1-amd64 v1.1-arm64 v1.2 v1.2-amd64 v1.2-arm64 v1.3-amd64 v1.3-arm64 v1.4-amd64 v1.4-arm64 latest-amd64 latest-arm64 main-amd64 main-arm64 sha-76caa04 sha-76caa04-amd64 sha-76caa04-arm64 sha-84340d3 sha-84340d3-amd64 sha-84340d3-arm64"
+          snapshot="/tmp/unchanged-tags"
+          : > "$snapshot"
+          for tag in $baseline; do
+            if tag_exists "$tag"; then
+              echo "${tag} $(crane digest "${REPO}:${tag}")" >> "$snapshot"
+            else
+              echo "missing baseline tag ${tag}" >&2
+              exit 1
+            fi
+          done
+
+          if tag_exists v1.3; then
+            require_digest v1.3 "$ORIG_V13"
+            index_points_at v1.3 "$ORIG_V13_AMD" "$ORIG_V13_ARM"
+          fi
+          if tag_exists v1.4; then
+            require_digest v1.4 "$ORIG_V14"
+            index_points_at v1.4 "$ORIG_V14_AMD" "$ORIG_V14_ARM"
+          fi
+          require_digest sha-84340d3 "$SHA_INDEX"
+          require_digest sha-84340d3-amd64 "$SHA_AMD"
+          require_digest sha-84340d3-arm64 "$SHA_ARM"
+
+          retag_arch v1.3-amd64 v1.2.1-amd64 "$ORIG_V13_AMD"
+          retag_arch v1.3-arm64 v1.2.1-arm64 "$ORIG_V13_ARM"
+          retag_arch v1.4-amd64 v1.2.2-amd64 "$ORIG_V14_AMD"
+          retag_arch v1.4-arm64 v1.2.2-arm64 "$ORIG_V14_ARM"
+
+          retag_index v1.3 v1.2.1 "$ORIG_V13" "$ORIG_V13_AMD" "$ORIG_V13_ARM"
+          retag_index v1.4 v1.2.2 "$ORIG_V14" "$ORIG_V14_AMD" "$ORIG_V14_ARM"
+
+          detach_index v1.2.1 v1.3 "$ORIG_V13" "$ORIG_V13_AMD" "$ORIG_V13_ARM"
+          detach_index v1.2.2 v1.4 "$ORIG_V14" "$ORIG_V14_AMD" "$ORIG_V14_ARM"
+
+          require_digest sha-84340d3 "$SHA_INDEX"
+          require_digest sha-84340d3-amd64 "$SHA_AMD"
+          require_digest sha-84340d3-arm64 "$SHA_ARM"
+          while read -r tag digest; do
+            require_digest "$tag" "$digest"
+          done < "$snapshot"
+
+          for tag in v1.3 v1.4; do
+            if tag_exists "$tag"; then
+              echo "retired tag still present: ${tag}" >&2
+              exit 1
+            fi
+          done
+
+          index_points_at v1.2.1 "$ORIG_V13_AMD" "$ORIG_V13_ARM"
+          index_points_at v1.2.2 "$ORIG_V14_AMD" "$ORIG_V14_ARM"
+          index_points_at latest "$ORIG_V14_AMD" "$ORIG_V14_ARM"
+          index_points_at main "$ORIG_V14_AMD" "$ORIG_V14_ARM"
+          require_digest v1.2.1-amd64 "$ORIG_V13_AMD"
+          require_digest v1.2.1-arm64 "$ORIG_V13_ARM"
+          require_digest v1.2.2-amd64 "$ORIG_V14_AMD"
+          require_digest v1.2.2-arm64 "$ORIG_V14_ARM"
+          require_digest v1.3-amd64 "$ORIG_V13_AMD"
+          require_digest v1.3-arm64 "$ORIG_V13_ARM"
+          require_digest v1.4-amd64 "$ORIG_V14_AMD"
+          require_digest v1.4-arm64 "$ORIG_V14_ARM"
+
+          # Untagged manifests from pushing the renamed git tags. Those builds
+          # used current Alpine, not the package set shipped with each release.
+          # 1474281665 is the mixed index from the overlapping v1.2.1 and v1.2.2
+          # builds. sha-84340d3 stays.
+          delete_untagged_rebuilds \
+            1474281535 \
+            1474279829 \
+            1474275479 \
+            1474281665
+
+          echo "final tags:"
+          for tag in v1.2 v1.2.1 v1.2.1-amd64 v1.2.1-arm64 v1.2.2 v1.2.2-amd64 v1.2.2-arm64 v1.3-amd64 v1.3-arm64 v1.4-amd64 v1.4-arm64 latest main sha-84340d3; do
+            echo "${tag} $(crane digest "${REPO}:${tag}")"
+          done
