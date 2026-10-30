@@ -24,6 +24,6 @@ services:
     healthcheck:
       test: ["CMD", "/usr/local/bin/docker-healthcheck.sh"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       start_period: 10s
       retries: 3

@@ -63,7 +63,9 @@ docker compose --project-directory examples up -d
 
 Prometheus can scrape `http://<host>:9617/metrics`. When Pi-hole runs on the same machine as Docker, set `PIHOLE_HOSTNAME` to the host's LAN IP (not `127.0.0.1` from inside the container).
 
-The image healthcheck script (`docker-healthcheck.sh`) probes `/healthz` on `127.0.0.1:$PORT` (port from `BIND_ADDR` + `PORT`, default `0.0.0.0:9617`; HTTP by default, HTTPS when `TLS_CERT_FILE` and `TLS_KEY_FILE` are set and the files exist). The container is marked unhealthy when Pi-hole is unreachable. Use `/liveness` for a process-only probe (always `200 ok`) in Kubernetes liveness checks.
+The image healthcheck script (`docker-healthcheck.sh`) probes `/healthz` on `127.0.0.1:$PORT` (port from `BIND_ADDR` + `PORT`, default `0.0.0.0:9617`; HTTP by default, HTTPS when `TLS_CERT_FILE` and `TLS_KEY_FILE` are set and the files exist). `/healthz` opens a Pi-hole session and reads blocking status, so the container is marked unhealthy when Pi-hole is unreachable. That probe is bounded by `HEALTH_CHECK_TIMEOUT` (default `5s`). The image `HEALTHCHECK` timeout is `10s` so the script can observe the result; raise it if you raise `HEALTH_CHECK_TIMEOUT`. Use `/liveness` for a process-only probe (always `200 ok`) in Kubernetes liveness checks, and `/readiness` for the cached result of the last metrics fetch.
+
+**Podman:** GHCR images are built with `provenance: false`, `sbom: false`, and `oci-mediatypes=false` so embedded `HEALTHCHECK` metadata is preserved ([podman#18904](https://github.com/containers/podman/issues/18904)). If Podman still reports that the image has no healthcheck, use `examples/docker-compose.yml` (explicit healthcheck) or `podman build --format docker`.
 
 ## Usage
 
@@ -102,6 +104,7 @@ All options can be set via CLI flags or environment variables.
 | `--bind-addr` | `BIND_ADDR` | `0.0.0.0` | Exporter listen address |
 | `--port` | `PORT` | `9617` | Exporter listen port |
 | `--timeout` | `TIMEOUT` | `5s` | Pi-hole request timeout |
+| `--health_check_timeout` | `HEALTH_CHECK_TIMEOUT` | `5s` | Timeout for the live `/healthz` connectivity probe |
 | `--skip-tls-verification` | `SKIP_TLS_VERIFICATION` | `false` | Skip TLS certificate verification when connecting to Pi-hole |
 | `--tls-cert-file` | `TLS_CERT_FILE` | | PEM certificate for the exporter HTTPS server |
 | `--tls-key-file` | `TLS_KEY_FILE` | | PEM private key for the exporter HTTPS server |
@@ -129,8 +132,8 @@ Prometheus should then scrape `https://<host>:9617/metrics` (configure `tls_conf
 |------|-------------|
 | `/` | Service index |
 | `/metrics` | Prometheus metrics (`503` when the last Pi-hole fetch failed) |
-| `/healthz` | Upstream readiness probe (`200 ok` after a successful fetch; `503` otherwise) |
-| `/readiness` | Same as `/healthz` |
+| `/healthz` | Live Pi-hole connectivity probe (`200 ok` when every host accepts a session and answers blocking status; `503` otherwise). Does not change cached scrape health |
+| `/readiness` | Cached scrape health (`200 ok` after a successful fetch; `503` when the last fetch failed or none has succeeded yet) |
 | `/liveness` | Always `200 ok` — process is running |
 
 ## Prometheus metrics

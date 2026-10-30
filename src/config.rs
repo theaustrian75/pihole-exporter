@@ -55,6 +55,10 @@ pub struct Cli {
     #[arg(long = "timeout", env = "TIMEOUT", value_parser = humantime::parse_duration, default_value = "5s")]
     pub timeout: Duration,
 
+    /// Timeout for the live `/healthz` connectivity probe.
+    #[arg(long = "health_check_timeout", env = "HEALTH_CHECK_TIMEOUT", value_parser = humantime::parse_duration, default_value = "5s")]
+    pub health_check_timeout: Duration,
+
     /// Skip TLS certificate verification (do not use on untrusted networks).
     #[arg(
         long = "skip_tls_verification",
@@ -85,6 +89,7 @@ pub struct EnvConfig {
     pub bind_addr: String,
     pub port: u16,
     pub timeout: Duration,
+    pub health_check_timeout: Duration,
     pub skip_tls_verification: bool,
     pub debug: bool,
     pub tls_cert_file: Option<PathBuf>,
@@ -125,6 +130,7 @@ impl From<Cli> for EnvConfig {
             bind_addr: cli.bind_addr,
             port: cli.port,
             timeout: cli.timeout,
+            health_check_timeout: cli.health_check_timeout,
             skip_tls_verification: cli.skip_tls_verification,
             debug: cli.debug,
             tls_cert_file: cli.tls_cert_file,
@@ -161,6 +167,7 @@ impl EnvConfig {
             bind_addr = %self.bind_addr,
             port = %self.port,
             timeout = ?self.timeout,
+            health_check_timeout = ?self.health_check_timeout,
             skip_tls_verification = self.skip_tls_verification,
             tls_enabled = self.tls_enabled(),
             pi_hole_hosts = self.pihole_hostname.len(),
@@ -181,6 +188,7 @@ impl EnvConfig {
         tracing::debug!(bind_addr = %self.bind_addr);
         tracing::debug!(port = %self.port);
         tracing::debug!(timeout = ?self.timeout);
+        tracing::debug!(health_check_timeout = ?self.health_check_timeout);
         tracing::debug!(skip_tls_verification = %self.skip_tls_verification);
         tracing::debug!(debug = %self.debug);
         if let Some(cert_file) = &self.tls_cert_file {
@@ -328,6 +336,7 @@ mod tests {
             bind_addr: "0.0.0.0".to_string(),
             port: 9617,
             timeout: Duration::from_secs(5),
+            health_check_timeout: Duration::from_secs(5),
             skip_tls_verification: false,
             debug: false,
             tls_cert_file: None,
